@@ -27,7 +27,12 @@ function settingRows_() {
 function setupTemplate() {
   const ss = SpreadsheetApp.getActive();
   ss.setSpreadsheetTimeZone('Asia/Taipei');
-  ss.setRecalculationInterval(SpreadsheetApp.RecalculationInterval.ON_CHANGE_AND_MINUTE);
+  try {
+    // 控制台的「最近 10 分鐘錯誤」靠 NOW() 每分鐘重算
+    ss.setRecalculationInterval(SpreadsheetApp.RecalculationInterval.ON_CHANGE_AND_MINUTE);
+  } catch (err) {
+    Logger.log('無法設定重新計算頻率，請手動到「檔案 › 設定 › 計算」改成「變更時和每分鐘」：' + err.message);
+  }
 
   const created = [];
   const make = (name, headers, fn) => {
