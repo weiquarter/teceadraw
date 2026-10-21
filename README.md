@@ -10,6 +10,7 @@ vendor/       QR code 產生程式庫（qrcode-generator，MIT），本機產生
 tools/        壓力測試與測試名單產生器
 deploy-test/  第 1 階段開頭的 5 分鐘部署測試
 prototype/    第 0 階段前台視覺原型
+docs/         規格書
 ```
 
 ## 目前進度
@@ -17,7 +18,7 @@ prototype/    第 0 階段前台視覺原型
 | 階段 | 狀態 |
 |---|---|
 | 0 前台視覺原型 | 完成，待選定拉霸樣式與配色 |
-| 1 範本 Sheet＋GAS＋報到頁＋初始化 | 程式完成，待部署測試與壓測 |
+| 1 範本 Sheet＋GAS＋報到頁＋初始化 | 完成；壓測與刪列排序測試通過，真人掃碼待補測 |
 | 2 Sheet 後台（控制台、完整選單、資料檢查） | 未開始 |
 | 3 前台接真實資料 | 未開始 |
 | 4 README、操作小抄、`v1` 標籤 | 未開始 |
@@ -52,7 +53,13 @@ prototype/    第 0 階段前台視覺原型
 node tools/make-test-people.mjs 600 > test-people.csv
 ```
 
-1. 把 `test-people.csv` 的內容（不含標題列）貼到「人員」分頁 A2。
+Windows PowerShell 的 `>` 會存成 UTF-16，壓測讀不到工號，請改用：
+
+```powershell
+cmd /c "node tools\make-test-people.mjs 600 > test-people.csv"
+```
+
+1. 把 `test-people.csv` 的內容（不含標題列）貼到「人員」分頁 A2（貼上前確認工號欄是純文字格式）。
 2. 「摸彩系統 › 活動當天 › 開始報到」。
 3. 執行：
 
