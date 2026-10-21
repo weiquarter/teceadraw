@@ -46,7 +46,6 @@ function setupTemplate() {
     created.push(name);
   };
 
-  make(SHEET.CONSOLE, null, buildConsole_);
   make(SHEET.PEOPLE, PEOPLE_HEADERS, sh => {
     ensureRows_(sh, 2000);
     sh.getRange('D2:D').setNumberFormat('@');
@@ -85,6 +84,8 @@ function setupTemplate() {
     sh.hideSheet();
   });
   [SHEET.STAGE, SHEET.SNAPSHOT, SHEET.OPLOG].forEach(name => make(name, null, sh => sh.hideSheet()));
+  // 控制台公式引用其他分頁，要最後建，否則公式會指向還不存在的分頁而算錯
+  make(SHEET.CONSOLE, null, buildConsole_);
 
   ['工作表1', 'Sheet1'].forEach(n => {
     const sh = ss.getSheetByName(n);
