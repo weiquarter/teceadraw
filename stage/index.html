@@ -687,7 +687,7 @@ function onBeat(r) {
   if (!drawable && M.loaded && r.state !== '已結束') { M.loaded = false; if (!U.busy) go('home'); }
   if (drawable && !M.loaded) loadDraw();
   if (M.loaded && r.version && r.version !== M.version) M.versionMismatch = true;
-  if (M.loaded && r.prizeChanged) M.prizeChanged = true;
+  if (M.loaded) M.prizeChanged = !!r.prizeChanged;
   U.nextPrizeName = r.nextPrize || '';
 
   // 第一次回報只記下目前的值當基準（略過開啟前就送出的指令），之後有變化才執行

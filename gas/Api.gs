@@ -39,7 +39,7 @@ function handle_(p) {
 
 // 給「初始化」匿名檢查部署用，不含任何活動資料
 function apiPing_() {
-  return { ok: true, apiVersion: API_VERSION, sheet: sheetHash_(), timeZone: Session.getScriptTimeZone() };
+  return { ok: true, apiVersion: API_VERSION, build: BUILD, sheet: sheetHash_(), timeZone: Session.getScriptTimeZone() };
 }
 
 function apiConfig_() {

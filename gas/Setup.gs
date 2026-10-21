@@ -230,11 +230,19 @@ function ensureFolders_() {
   return out;
 }
 
-// 初始化對話框呼叫：以匿名方式打部署網址，確認存取權、對應的 Sheet 與時區
+// 初始化對話框呼叫：檢查通過才把部署作業 ID 存起來
 function verifyDeployment(input) {
   const m = String(input || '').trim().match(/\/s\/([\w-]+)\//) || String(input || '').trim().match(/^([\w-]{30,})$/);
   if (!m) return { ok: false, message: '看不懂貼上的內容。請貼「部署作業 ID」（AKfycb 開頭的一長串），或網頁應用程式網址。' };
-  const id = m[1];
+  const r = checkDeployment_(m[1]);
+  if (!r.ok) return r;
+  sysSet_('部署ID', m[1]);
+  log_('初始化', true, null, m[1]);
+  return { ok: true, message: '檢查通過：匿名存取正常，部署屬於這份 Sheet。' + (r.warn ? '\n' + r.warn : '') };
+}
+
+// 以匿名方式打部署網址，確認存取權、對應的 Sheet、時區與程式版本
+function checkDeployment_(id) {
   const url = 'https://script.google.com/macros/s/' + id + '/exec?a=ping';
   let res;
   try {
@@ -244,22 +252,24 @@ function verifyDeployment(input) {
   }
   const code = res.getResponseCode();
   const text = res.getContentText();
-  if (code === 404) return { ok: false, message: '找不到這個部署。請確認貼的是「網頁應用程式」的部署作業 ID，而不是程式庫或專案 ID。' };
+  if (code === 404) return { ok: false, message: '找不到這個部署，可能已經被封存，或貼的不是「網頁應用程式」的部署作業 ID。' };
   let data = null;
   try { data = JSON.parse(text); } catch (e) { data = null; }
   if (!data) {
     if (/accounts\.google\.com|ServiceLogin|signin/i.test(text)) {
       return { ok: false, message: '匿名存取被導去登入頁。請到「管理部署作業」把「誰可以存取」改成「任何人」，執行身分選「我」。如果選單裡沒有「任何人」，代表 Workspace 管理員關閉了這個選項，需要請管理員開啟。' };
     }
-    return { ok: false, message: '部署網址沒有回傳預期的資料（HTTP ' + code + '）。請確認部署的是這個專案的最新版本。' };
+    return { ok: false, message: '部署網址沒有回傳預期的資料（HTTP ' + code + '），可能已經被封存。請確認部署作業 ID。' };
   }
-  if (!data.ok) return { ok: false, message: '部署的程式版本太舊，沒有檢查用的功能。請「管理部署作業 › 編輯 › 版本：新版本」後再試。' };
+  if (!data.ok) return { ok: false, message: '部署的程式版本太舊，沒有檢查用的功能。請「管理部署作業 › 編輯現有部署 › 版本：新版本」後再試。' };
   if (data.sheet !== sheetHash_()) return { ok: false, message: '這個部署屬於另一份 Sheet。請在這份 Sheet 的「擴充功能 › Apps Script」裡部署，再貼上那個部署作業 ID。' };
-  if (data.apiVersion !== API_VERSION) return { ok: false, message: '部署的程式版本跟目前程式碼不一致，請部署新版本。' };
-  sysSet_('部署ID', id);
-  log_('初始化', true, null, id);
-  const warn = data.timeZone !== 'Asia/Taipei' ? '\n⚠️ 專案時區是 ' + data.timeZone + '，請到「專案設定」改成 (GMT+08:00) 台北。' : '';
-  return { ok: true, message: '檢查通過：匿名存取正常，部署屬於這份 Sheet。' + warn };
+  if (data.apiVersion !== API_VERSION) return { ok: false, message: '部署的程式版本跟目前程式碼不相容，請部署新版本。' };
+  const warn = [];
+  if (Number(data.build || 0) < BUILD) {
+    warn.push('⚠️ 部署的版本比目前的程式舊。請到 Apps Script「部署 › 管理部署作業」，編輯現有的部署、版本選最新（不要新增部署，ID 會變）。');
+  }
+  if (data.timeZone !== 'Asia/Taipei') warn.push('⚠️ 專案時區是 ' + data.timeZone + '，請到「專案設定」改成 (GMT+08:00) 台北。');
+  return { ok: true, warn: warn.join('\n') };
 }
 
 // ── 產生連結 ─────────────────────────────────────────
@@ -275,6 +285,8 @@ function menuLinks() {
   t.checkinUrl = base + '/checkin/?e=' + encodeURIComponent(id);
   t.stageUrl = base + '/stage/?e=' + encodeURIComponent(id) + '&k=' + encodeURIComponent(stageKey_());
   t.title = String(readKeyValue_(SHEET.SETTINGS)['活動名稱'] || '');
+  const chk = checkDeployment_(id);
+  t.warning = chk.ok ? (chk.warn || '') : '⚠️ ' + chk.message + '\n連結可能無法使用，請先重新執行「活動前 › 初始化」。';
   SpreadsheetApp.getUi().showModalDialog(t.evaluate().setWidth(620).setHeight(640), '產生連結');
 }
 
@@ -528,8 +540,10 @@ function poolHash_(pool) {
   return hash_(pool.map(p => p.id).sort().join(','), 4);
 }
 
+// 依排序計算，跟獎項列在分頁上的先後無關
 function prizeHash_(prizes) {
-  return hash_(JSON.stringify(prizes.map(p => [p.sort, p.name, p.qty, photoKey_(p.photo), p.mode])), 4);
+  const sorted = prizes.slice().sort((a, b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0));
+  return hash_(JSON.stringify(sorted.map(p => [p.sort, p.name, p.qty, photoKey_(p.photo), p.mode])), 4);
 }
 
 function writeCheckResults_(title, issues) {

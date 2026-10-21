@@ -16,6 +16,7 @@
 <?!= include_('QrLib') ?>
 </head>
 <body>
+  <? if (warning) { ?><div class="warn" style="white-space:pre-wrap;margin-bottom:8px"><?= warning ?></div><? } ?>
   <h3>報到連結（給所有員工）</h3>
   <div class="url"><input id="ci" readonly value="<?= checkinUrl ?>"><button type="button" data-copy="ci">複製</button></div>
   <div class="qr">

@@ -1,6 +1,8 @@
 /** 共用：常數、系統狀態、設定讀取、Log、工號正規化與姓名遮蔽。 */
 
 const API_VERSION = 1;
+// 每次推送新程式就加一，用來判斷部署是不是最新版本
+const BUILD = 11;
 
 const SHEET = {
   CONSOLE: '控制台',

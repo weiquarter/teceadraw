@@ -32,7 +32,10 @@ function onEdit(e) {
   else if (name === SHEET.SETTINGS) invalidateConfig_();
   else if (name === SHEET.PRIZES) {
     const state = currentState_();
-    if (state === STATE.LOCKED || state === STATE.DRAWING) sysSet_('獎項鎖定後變更', '是');
+    // 跟鎖定時的檢查碼比對，改回原樣就會解除警告
+    if (state === STATE.LOCKED || state === STATE.DRAWING) {
+      sysSet_('獎項鎖定後變更', prizeHash_(readPrizes_()) === String(sysGet_('獎項檢查碼')) ? '' : '是');
+    }
   }
 }
 
