@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body { font: 14px/1.6 "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: #3E3236; margin: 0; padding: 4px 8px; }
+  .box { background: #FFF5F3; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+  .box b { display: inline-block; min-width: 64px; }
+  label { display: block; margin: 10px 0 4px; font-weight: 700; }
+  input[type=text] { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-weight: 400; }
+  .check input { margin-top: 5px; }
+  .muted { color: #6E5A60; font-size: 13px; }
+  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  button { font: inherit; padding: 8px 18px; border: 0; border-radius: 8px; cursor: pointer; }
+  #go { background: #E8A3A3; color: #3E3236; font-weight: 700; }
+  #go:disabled { opacity: .5; cursor: default; }
+  #cancel { background: #eee; }
+  #msg { margin-top: 10px; padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; display: none; }
+  #msg.ok { display: block; background: #E3F4EC; }
+  #msg.bad { display: block; background: #FDE7E4; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div><b>會清除</b>報到時間、中獎獎項、得獎名單、前台狀態、名單快照、操作紀錄</div>
+    <div><b>不會清除</b>人員名單、獎項、設定、Log</div>
+    <div class="muted">系統回到「準備中」，前台需要重新開啟。</div>
+  </div>
+
+  <label for="txt">請輸入「確定清除」</label>
+  <input type="text" id="txt" autocomplete="off">
+
+  <label class="check"><input type="checkbox" id="backup" checked>
+    <span>清除前先備份<br><span class="muted">把整份 Sheet 複製一份到「備份」資料夾，檔名帶日期時間。彩排時可以取消勾選，避免備份堆積。</span></span>
+  </label>
+
+  <div class="row">
+    <button type="button" id="cancel">取消</button>
+    <button type="button" id="go" disabled>清除</button>
+  </div>
+  <div id="msg"></div>
+
+<script>
+  const txt = document.getElementById('txt');
+  const go = document.getElementById('go');
+  const msg = document.getElementById('msg');
+  txt.focus();
+  txt.oninput = () => { go.disabled = txt.value.trim() !== '確定清除'; };
+  document.getElementById('cancel').onclick = () => google.script.host.close();
+  go.onclick = () => {
+    go.disabled = true; go.textContent = '清除中…';
+    google.script.run
+      .withSuccessHandler(r => {
+        msg.className = r.ok ? 'ok' : 'bad';
+        msg.textContent = r.message + (r.ok ? '\n\n這個視窗可以關閉了。' : '');
+        go.textContent = '清除';
+        if (r.ok) { document.getElementById('cancel').textContent = '關閉'; } else { go.disabled = false; }
+      })
+      .withFailureHandler(e => {
+        msg.className = 'bad'; msg.textContent = '清除時發生錯誤：' + e.message;
+        go.disabled = false; go.textContent = '清除';
+      })
+      .clearDataConfirmed(txt.value, document.getElementById('backup').checked);
+  };
+</script>
+</body>
+</html>

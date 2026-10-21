@@ -40,6 +40,10 @@ const PRIZE_HEADERS = ['排序', '獎項名稱', '數量', '照片檔名', '抽�
 const WINNER_HEADERS = ['時間', '獎項', '名額序號', '單位', '工號', '姓名', '狀態', '備註'];
 const LOG_HEADERS = ['時間', 'API／動作', '結果', '耗時（毫秒）', '對象', '前台代號', '錯誤訊息'];
 
+const SNAPSHOT_HEADERS = ['工號', '單位', '姓名', '顯示名稱'];
+const STAGE_STATUS_KEYS = ['前台代號', '目前獎項', '目前頁面', '待同步筆數', '最後回報時間'];
+const PRIZE_MODES = ['一次抽完', '逐個抽出'];
+
 const PALETTE_IDS = { '草莓牛奶': 'strawberry', '薄荷檸檬': 'mint', '薰衣草藍莓': 'lavender' };
 
 const TEXT_KEYS = {
@@ -169,8 +173,13 @@ function hhmm_(display) {
 }
 
 function sheetHash_() {
-  const d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, SpreadsheetApp.getActive().getId());
-  return d.slice(0, 6).map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
+  return hash_(SpreadsheetApp.getActive().getId(), 6);
+}
+
+// SHA-256 取前 n 個位元組的十六進位
+function hash_(text, n) {
+  const d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return d.slice(0, n).map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
 }
 
 function include_(file) {

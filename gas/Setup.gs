@@ -1,4 +1,4 @@
-/** 活動前與進階：建立範本結構、初始化（資料夾＋部署檢查）、產生連結、清除資料。 */
+/** 活動前與進階：建立範本結構與控制台、初始化（資料夾＋部署檢查）、產生連結、資料檢查、模擬全員報到、清除資料、重新產生前台連結。 */
 
 function settingRows_() {
   return [
@@ -23,7 +23,7 @@ function settingRows_() {
   ];
 }
 
-// 在 Apps Script 編輯器手動執行一次，建立範本 Sheet 的所有分頁；已存在的分頁不會動
+// 在 Apps Script 編輯器手動執行，建立範本 Sheet 的所有分頁；已存在的分頁不會動，控制台每次都重建
 function setupTemplate() {
   const ss = SpreadsheetApp.getActive();
   ss.setSpreadsheetTimeZone('Asia/Taipei');
@@ -84,8 +84,15 @@ function setupTemplate() {
     sh.hideSheet();
   });
   [SHEET.STAGE, SHEET.SNAPSHOT, SHEET.OPLOG].forEach(name => make(name, null, sh => sh.hideSheet()));
-  // 控制台公式引用其他分頁，要最後建，否則公式會指向還不存在的分頁而算錯
-  make(SHEET.CONSOLE, null, buildConsole_);
+
+  // 控制台公式引用其他分頁，要最後建，否則公式會指向還不存在的分頁而算錯；內容全是公式，每次重建以套用新版
+  const old = ss.getSheetByName(SHEET.CONSOLE);
+  const next = old ? old.getRange('B17').getValue() : '';
+  if (old) ss.deleteSheet(old);
+  const consoleSheet = ss.insertSheet(SHEET.CONSOLE, 0);
+  buildConsole_(consoleSheet);
+  if (next) consoleSheet.getRange('B17').setValue(next);
+  created.push(SHEET.CONSOLE + '（重建）');
 
   ['工作表1', 'Sheet1'].forEach(n => {
     const sh = ss.getSheetByName(n);
@@ -97,13 +104,17 @@ function setupTemplate() {
 }
 
 function buildConsole_(sh) {
-  const st = "IFERROR(VLOOKUP(\"系統狀態\",'" + SHEET.SYSTEM + "'!A:B,2,FALSE),\"準備中\")";
-  const nextStep = 'SWITCH(B3,' + Object.keys(NEXT_STEP).map(k => '"' + k + '","' + NEXT_STEP[k] + '"').join(',') + ',"")';
+  const kv = (sheetName, key, fallback) =>
+    "IFERROR(VLOOKUP(\"" + key + "\",'" + sheetName + "'!A:B,2,FALSE),\"" + fallback + "\")";
   const live = "'" + SHEET.PEOPLE + "'!";
+  const log = "'" + SHEET.LOG + "'!";
+  const prize = "'" + SHEET.PRIZES + "'!";
+  const nextStep = 'SWITCH(B3,' + Object.keys(NEXT_STEP).map(k => '"' + k + '","' + NEXT_STEP[k] + '"').join(',') + ',"")';
+  const stage = k => '=' + kv(SHEET.STAGE, k, '—');
   const rows = [
     ['摸彩系統 控制台', ''],
     ['', ''],
-    ['目前狀態', '=' + st],
+    ['目前狀態', '=' + kv(SHEET.SYSTEM, '系統狀態', '準備中')],
     ['下一步', '=' + nextStep],
     ['', ''],
     ['報到統計', ''],
@@ -111,21 +122,71 @@ function buildConsole_(sh) {
     ['總人數', '=COUNTIFS(' + live + 'D2:D,"<>",' + live + 'G2:G,"<>移除")'],
     ['有抽獎資格且已報到', '=COUNTIFS(' + live + 'H2:H,"<>",' + live + 'D2:D,"<>",' + live + 'F2:F,"是",' + live + 'G2:G,"<>移除")'],
     ['', ''],
-    ['錯誤監看', ''],
-    ['最近 10 分鐘 GAS 錯誤', '=COUNTIFS(\'' + SHEET.LOG + '\'!A2:A,">"&(NOW()-10/1440),\'' + SHEET.LOG + '\'!C2:C,"失敗")'],
+    ['名單快照', ''],
+    ['版本', '=IF(' + kv(SHEET.SYSTEM, '名單檢查碼', '') + '="","（尚未鎖定）",' + kv(SHEET.SYSTEM, '名單版本', '') + ')'],
+    ['抽獎池人數', '=' + kv(SHEET.SYSTEM, '抽獎池人數', '')],
+    ['檢查碼', '=' + kv(SHEET.SYSTEM, '名單檢查碼', '') + '&IF(' + kv(SHEET.SYSTEM, '獎項檢查碼', '') + '="",""," ／ 獎項 "&' + kv(SHEET.SYSTEM, '獎項檢查碼', '') + ')'],
+    ['獎項', '=IF(' + kv(SHEET.SYSTEM, '獎項鎖定後變更', '') + '="是","⚠️ 獎項在鎖定後被修改，請解除鎖定後重新鎖定","")'],
     ['', ''],
-    ['提示', '第一次使用「摸彩系統」選單時會要求授權，屬正常現象。'],
+    ['下一個要抽的獎項', ''],
+    ['', '=IF(B17<>"","↑ 前台回主頁時生效；清空＝照排序","空白＝照排序：" & IFERROR(INDEX(SORT(FILTER({' + prize + 'A2:A,' + prize + 'B2:B},' + prize + 'B2:B<>"",' + prize + 'F2:F<>"已完成"),1,TRUE),1,2),"（沒有待抽的獎項）"))'],
+    ['', ''],
+    ['前台監看', ''],
+    ['前台代號', stage('前台代號')],
+    ['目前獎項', stage('目前獎項')],
+    ['目前頁面', stage('目前頁面')],
+    ['待同步筆數', stage('待同步筆數')],
+    ['最後回報時間', stage('最後回報時間')],
+    ['', ''],
+    ['錯誤監看', ''],
+    ['最近 10 分鐘 GAS 錯誤', '=COUNTIFS(' + log + 'A2:A,">"&(NOW()-10/1440),' + log + 'C2:C,"失敗")'],
+    ['', ''],
+    ['提示', '第一次使用「摸彩系統」選單時會要求授權，屬正常現象。\n這一頁只有「下一個要抽的獎項」可以改，其他都會自動更新。'],
+    ['', ''],
+    ['即時得獎名單（目前獎項）', ''],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
+  sh.getRange('A33:E33').setValues([['名額序號', '單位', '工號', '姓名', '狀態']]).setFontWeight('bold').setBackground('#F3E7EA');
+  sh.getRange('A34').setFormula("=IFERROR(FILTER({'" + SHEET.WINNERS + "'!C2:C,'" + SHEET.WINNERS + "'!D2:D,'" + SHEET.WINNERS + "'!E2:E,'" + SHEET.WINNERS + "'!F2:F,'" + SHEET.WINNERS + "'!G2:G},'" + SHEET.WINNERS + "'!B2:B=B22),\"（還沒有得獎人）\")");
+
+  sh.getRange('G1').setValue('資料檢查結果').setFontSize(14).setFontWeight('bold');
+  sh.getRange('G2').setValue('（還沒有檢查過。按「摸彩系統 › 活動前 › 資料檢查」）');
+  sh.getRange('G4:I4').setValues([['等級', '項目', '說明']]).setFontWeight('bold').setBackground('#F3E7EA');
+
   sh.getRange('A1').setFontSize(18).setFontWeight('bold');
   sh.getRange('A3:B4').setFontSize(20).setFontWeight('bold');
-  sh.getRange('A6').setFontWeight('bold');
-  sh.getRange('A11').setFontWeight('bold');
-  sh.getRange('B7:B9').setFontSize(16).setHorizontalAlignment('left');
-  sh.getRange('B12').setHorizontalAlignment('left');
-  sh.getRange('B12').setFontColor('#B5481C');
-  sh.setColumnWidth(1, 220);
-  sh.setColumnWidth(2, 420);
+  ['A6', 'A11', 'A17', 'A20', 'A27', 'A32'].forEach(a => sh.getRange(a).setFontWeight('bold').setFontSize(12));
+  sh.getRange('B7:B9').setFontSize(16);
+  sh.getRange('B2:B30').setHorizontalAlignment('left');
+  sh.getRange('B15').setFontColor('#B5481C').setFontWeight('bold');
+  sh.getRange('B18').setFontColor('#6E5A60');
+  sh.getRange('B28').setFontColor('#B5481C');
+  sh.getRange('B30').setWrap(true);
+  sh.getRange('B25').setNumberFormat('hh:mm:ss');
+
+  const b17 = sh.getRange('B17');
+  b17.setBackground('#FFF3C4').setFontSize(14).setFontWeight('bold')
+    .setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInRange(sheet_(SHEET.PRIZES).getRange('B2:B'), true).setAllowInvalid(false).build());
+
+  const rules = [
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=AND(ISNUMBER($B$25),NOW()-$B$25>15/86400)')
+      .setBackground('#F8C9C0').setFontColor('#8A1C0B').setRanges([sh.getRange('A25:B25')]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$B$28>0').setBackground('#F8C9C0').setRanges([sh.getRange('A28:B28')]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$E34="作廢"').setStrikethrough(true).setFontColor('#999999').setRanges([sh.getRange('A34:E50')]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('錯誤').setBackground('#F8C9C0').setRanges([sh.getRange('G5:G300')]).build(),
+  ];
+  sh.setConditionalFormatRules(rules);
+  [230, 360, 110, 110, 90, 30, 70, 260, 420].forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  sh.setFrozenRows(4);
+
+  // 只有「下一個要抽的獎項」可以改，其他格子改了會跳警告
+  const p = sh.protect().setWarningOnly(true).setDescription('摸彩系統：控制台只有「下一個要抽的獎項」可以改');
+  p.setUnprotectedRanges([b17]);
 }
 
 function listRule_(values) {
@@ -227,24 +288,17 @@ function stageKey_() {
 
 // ── 清除資料 ─────────────────────────────────────────
 
-// 回傳是否真的清除了（給「開始報到」判斷要不要繼續）
 function menuClearData() {
-  const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('清除資料',
-    '會清除：報到時間、中獎獎項、得獎名單、前台狀態、名單快照、操作紀錄，系統回到「準備中」，前台需要重新開啟。\n' +
-    '不會清除：人員名單、獎項、設定、Log。\n\n請輸入「確定清除」：', ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return false;
-  if (r.getResponseText().trim() !== '確定清除') {
-    ui.alert('輸入的文字不對，沒有清除任何資料。');
-    return false;
-  }
-  const b = ui.alert('清除前先備份？',
-    '按「是」會先把整份 Sheet 複製一份到「備份」資料夾（正式活動建議備份）。\n彩排時可以按「否」，避免備份堆積。', ui.ButtonSet.YES_NO_CANCEL);
-  if (b !== ui.Button.YES && b !== ui.Button.NO) return false;
+  const html = HtmlService.createHtmlOutputFromFile('ClearDialog').setWidth(520).setHeight(430);
+  SpreadsheetApp.getUi().showModalDialog(html, '清除資料');
+}
 
+// 清除對話框呼叫
+function clearDataConfirmed(text, backup) {
+  if (String(text || '').trim() !== '確定清除') return { ok: false, message: '輸入的文字不對，沒有清除任何資料。' };
   const t0 = Date.now();
   let backupName = '';
-  if (b === ui.Button.YES) {
+  if (backup) {
     ensureFolders_();
     const folder = DriveApp.getFolderById(sysGet_('備份資料夾ID'));
     const ss = SpreadsheetApp.getActive();
@@ -261,6 +315,7 @@ function menuClearData() {
     [SHEET.STAGE, SHEET.SNAPSHOT, SHEET.OPLOG].forEach(n => sheet_(n).clearContents());
     discardPendingCheckins_();
     removeSystemProtections_();
+    ['名單檢查碼', '獎項檢查碼', '抽獎池人數', '獎項鎖定後變更', '鎖定時間'].forEach(k => sysSet_(k, ''));
     sysSet_('系統狀態', STATE.PREP);
     SpreadsheetApp.flush();
     invalidateConfig_();
@@ -272,8 +327,223 @@ function menuClearData() {
   } finally {
     lock.releaseLock();
   }
-  ui.alert('已清除', '系統已回到「準備中」。' + (backupName ? '\n備份檔：' + backupName : ''), ui.ButtonSet.OK);
-  return true;
+  return { ok: true, message: '已清除，系統回到「準備中」。' + (backupName ? '\n備份檔：' + backupName : '') };
+}
+
+// ── 模擬全員報到、重新產生前台連結 ────────────────────
+
+function menuSimulateCheckin() {
+  const ui = SpreadsheetApp.getUi();
+  if (!checkState_(STATE.OPEN, '模擬全員報到')) return;
+  const r = ui.alert('模擬全員報到', '會把所有「可否摸彩＝是」、不是「移除」、還沒報到的人填上目前時間。\n只用在彩排與壓測，正式活動不要按。', ui.ButtonSet.OK_CANCEL);
+  if (r !== ui.Button.OK) return;
+  const t0 = Date.now();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let n = 0;
+  try {
+    for (let i = 0; i < 10 && flushLocked_() > 0; i++) { /* 先寫完真的報到 */ }
+    const sh = sheet_(SHEET.PEOPLE);
+    const last = sh.getLastRow();
+    if (last >= 2) {
+      const rows = sh.getRange(2, 1, last - 1, PEOPLE_HEADERS.length).getValues();
+      const now = new Date();
+      const times = rows.map(row => {
+        const fill = row[PC.TIME - 1] === '' && String(row[PC.ID - 1]).trim() !== '' &&
+          String(row[PC.ELIGIBLE - 1]).trim() === '是' && String(row[PC.REG - 1]).trim() !== '移除';
+        if (fill) n++;
+        return [fill ? now : row[PC.TIME - 1]];
+      });
+      sh.getRange(2, PC.TIME, times.length, 1).setValues(times);
+    }
+    markPeopleDirty_();
+    log_('模擬全員報到', true, Date.now() - t0, n + ' 人');
+  } finally {
+    lock.releaseLock();
+  }
+  ui.alert('已模擬報到', '填入 ' + n + ' 人的報到時間。', ui.ButtonSet.OK);
+}
+
+function menuRegenStageKey() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.alert('重新產生前台連結？', '舊的前台連結會立刻失效，正在使用的前台要改開新連結。', ui.ButtonSet.YES_NO);
+  if (r !== ui.Button.YES) return;
+  PropertiesService.getScriptProperties().deleteProperty('STAGE_KEY');
+  stageKey_();
+  log_('重新產生前台連結', true, null, '');
+  menuLinks();
+}
+
+// ── 資料檢查 ─────────────────────────────────────────
+
+function menuDataCheck() {
+  const issues = runChecks_({ people: true, prizes: true });
+  writeCheckResults_('資料檢查', issues);
+  log_('資料檢查', true, null, issues.length + ' 個項目');
+  SpreadsheetApp.getUi().alert('資料檢查完成', checkSummary_(issues, '資料檢查') + '\n\n詳細內容在控制台右側的「資料檢查結果」。', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+// 回傳問題清單：{ level: 錯誤／提醒, item, detail, blocksLock }
+function runChecks_(opts) {
+  const issues = [];
+  const add = (level, item, detail, blocksLock) => issues.push({ level: level, item: item, detail: detail || '', blocksLock: !!blocksLock });
+  const list = (arr, n) => arr.slice(0, n || 10).join('、') + (arr.length > (n || 10) ? ' 等 ' + arr.length + ' 筆' : '');
+  const state = currentState_();
+  const afterClose = [STATE.CLOSED, STATE.LOCKED, STATE.DRAWING, STATE.ENDED].indexOf(state) >= 0;
+
+  const people = readPeople_();
+  const active = people.filter(p => p.reg !== '移除' && p.id);
+  const eligibleCount = active.filter(p => p.eligible === '是' && (!afterClose || p.checkedIn)).length;
+
+  if (opts.people) {
+    const seen = {};
+    const dups = [];
+    people.forEach(p => {
+      if (!p.id) return;
+      if (seen[p.id]) dups.push(p.id + '（第 ' + seen[p.id] + '、' + p.row + ' 列）');
+      else seen[p.id] = p.row;
+    });
+    if (dups.length) add('錯誤', '工號重複', list(dups), true);
+
+    const blank = people.filter(p => !p.unit || !p.id || !p.name || !p.eligible).map(p => '第 ' + p.row + ' 列');
+    if (blank.length) add('錯誤', '單位、工號、姓名、可否摸彩有空白', list(blank));
+    const badElig = people.filter(p => p.eligible && p.eligible !== '是' && p.eligible !== '否').map(p => '第 ' + p.row + ' 列（' + p.eligible + '）');
+    if (badElig.length) add('錯誤', '「可否摸彩」只能填 是／否', list(badElig));
+    const noReg = people.filter(p => !p.reg).map(p => '第 ' + p.row + ' 列');
+    if (noReg.length) add('提醒', '登錄狀態空白（會當作「既有」）', list(noReg));
+    const badReg = people.filter(p => p.reg && ['既有', '現場新增', '移除'].indexOf(p.reg) < 0).map(p => '第 ' + p.row + ' 列（' + p.reg + '）');
+    if (badReg.length) add('錯誤', '登錄狀態只能填 既有／現場新增／移除', list(badReg));
+
+    const numeric = people.filter(p => p.idIsNumber).map(p => '第 ' + p.row + ' 列');
+    if (numeric.length) add('提醒', '工號是數字格式，前導 0 可能已經遺失', list(numeric) + '。請把工號欄設成純文字後重新貼上。');
+    const lens = {};
+    people.filter(p => /^\d+$/.test(p.id)).forEach(p => { lens[p.id.length] = (lens[p.id.length] || 0) + 1; });
+    const common = Object.keys(lens).sort((a, b) => lens[b] - lens[a])[0];
+    if (common) {
+      const short = people.filter(p => /^\d+$/.test(p.id) && p.id.length < Number(common)).map(p => p.id + '（第 ' + p.row + ' 列）');
+      if (short.length) add('提醒', '工號比多數人短，可能少了前導 0', '多數是 ' + common + ' 碼：' + list(short));
+    }
+
+    const byName = {};
+    active.forEach(p => { const k = p.unit + '|' + p.name; (byName[k] = byName[k] || []).push(p); });
+    const same = Object.keys(byName).filter(k => byName[k].length > 1).map(k => k.replace('|', '_') + '（' + byName[k].map(p => p.id).join('、') + '）');
+    if (same.length) add('提醒', '同單位同名同姓', list(same) + '。前台會自動加上工號後四碼區分。');
+
+    const rare = active.filter(p => /[㐀-䶿豈-﫿]|[\uD840-\uD87F][\uDC00-\uDFFF]/.test(p.name)).map(p => p.name + '（' + p.id + '）');
+    if (rare.length) add('提醒', '罕用字（字型可能沒有收錄）', list(rare) + '。請在前台預覽確認顯示正常。');
+  }
+
+  if (opts.prizes) {
+    const prizes = readPrizes_();
+    if (!prizes.length) add('錯誤', '獎項分頁沒有任何獎項', '', true);
+    const bad = [];
+    const sorts = {};
+    prizes.forEach(p => {
+      const where = '第 ' + p.row + ' 列' + (p.name ? '（' + p.name + '）' : '');
+      if (!p.name) bad.push(where + '：獎項名稱空白');
+      if (!(p.qty >= 1 && p.qty <= 10 && Math.floor(p.qty) === p.qty)) bad.push(where + '：數量要是 1～10 的整數');
+      if (PRIZE_MODES.indexOf(p.mode) < 0) bad.push(where + '：抽法要選 一次抽完／逐個抽出');
+      if (typeof p.sort !== 'number') bad.push(where + '：排序要填數字');
+      else if (sorts[p.sort]) bad.push(where + '：排序 ' + p.sort + ' 跟第 ' + sorts[p.sort] + ' 列重複');
+      else sorts[p.sort] = p.row;
+    });
+    if (bad.length) add('錯誤', '獎項資料有誤', list(bad, 20), true);
+
+    const total = prizes.reduce((a, p) => a + (p.qty > 0 ? p.qty : 0), 0);
+    if (total > eligibleCount) {
+      add('錯誤', '獎項總份數超過' + (afterClose ? '抽獎池' : '有抽獎資格的') + '人數',
+        '獎項共 ' + total + ' 份，' + (afterClose ? '已報到且有資格的' : '有資格的') + '只有 ' + eligibleCount + ' 人', true);
+    }
+
+    const folderId = sysGet_('素材資料夾ID');
+    const withPhoto = prizes.filter(p => p.photo);
+    if (withPhoto.length && !folderId) add('提醒', '還沒初始化，無法檢查獎品照片', '請先執行「活動前 › 初始化」');
+    if (withPhoto.length && folderId) {
+      const files = [];
+      const it = DriveApp.getFolderById(folderId).getFiles();
+      while (it.hasNext()) files.push(it.next().getName());
+      const have = {};
+      files.forEach(f => { have[photoKey_(f)] = true; });
+      const missing = withPhoto.filter(p => !have[photoKey_(p.photo)]).map(p => p.name + '：' + p.photo);
+      if (missing.length) add('提醒', '找不到獎品照片（會改用只有文字的版面）', list(missing) + '。素材資料夾裡實際的檔名：' + (files.length ? list(files, 30) : '（資料夾是空的）'));
+    }
+  }
+  return issues;
+}
+
+function photoKey_(name) {
+  return String(name || '').trim().replace(/\.[^.]+$/, '').toLowerCase();
+}
+
+function readPeople_() {
+  const sh = sheet_(SHEET.PEOPLE);
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const range = sh.getRange(2, 1, last - 1, PEOPLE_HEADERS.length);
+  const values = range.getValues();
+  const shown = range.getDisplayValues();
+  return shown.map((r, i) => ({
+    row: i + 2,
+    unit: String(r[PC.UNIT - 1]).trim(),
+    id: normId(r[PC.ID - 1]),
+    idIsNumber: typeof values[i][PC.ID - 1] === 'number',
+    name: String(r[PC.NAME - 1]).trim(),
+    eligible: String(r[PC.ELIGIBLE - 1]).trim(),
+    reg: String(r[PC.REG - 1]).trim(),
+    checkedIn: String(r[PC.TIME - 1]).trim() !== '',
+  })).filter(p => p.unit || p.id || p.name || p.eligible || p.reg);
+}
+
+function readPrizes_() {
+  const sh = sheet_(SHEET.PRIZES);
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, PRIZE_HEADERS.length).getValues()
+    .map((r, i) => ({
+      row: i + 2,
+      sort: r[0] === '' ? '' : (typeof r[0] === 'number' ? r[0] : (isNaN(Number(r[0])) ? r[0] : Number(r[0]))),
+      name: String(r[1]).trim(),
+      qty: Number(r[2]),
+      photo: String(r[3]).trim(),
+      mode: String(r[4]).trim(),
+      status: String(r[5]).trim(),
+    }))
+    .filter(p => p.sort !== '' || p.name || p.photo || p.mode);
+}
+
+// 抽獎池：已報到、可否摸彩＝是、不是移除；同單位同名同姓加工號後四碼
+function buildPool_() {
+  const pool = readPeople_().filter(p => p.id && p.checkedIn && p.eligible === '是' && p.reg !== '移除');
+  const count = {};
+  pool.forEach(p => { const k = p.unit + '|' + p.name; count[k] = (count[k] || 0) + 1; });
+  pool.forEach(p => {
+    p.display = p.unit + '_' + p.name + (count[p.unit + '|' + p.name] > 1 ? '（' + p.id.slice(-4) + '）' : '');
+  });
+  return pool;
+}
+
+function poolHash_(pool) {
+  return hash_(pool.map(p => p.id).sort().join(','), 4);
+}
+
+function prizeHash_(prizes) {
+  return hash_(JSON.stringify(prizes.map(p => [p.sort, p.name, p.qty, photoKey_(p.photo), p.mode])), 4);
+}
+
+function writeCheckResults_(title, issues) {
+  const sh = sheet_(SHEET.CONSOLE);
+  const last = Math.max(sh.getLastRow(), 5);
+  sh.getRange(5, 7, last - 4, 3).clearContent();
+  sh.getRange('G2').setValue(title + '｜' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'MM/dd HH:mm') + '｜' + checkSummary_(issues, '').trim());
+  const rows = issues.length ? issues.map(x => [x.level, x.item, x.detail]) : [['—', '沒有發現問題', '']];
+  sh.getRange(5, 7, rows.length, 3).setValues(rows).setWrap(true).setVerticalAlignment('top');
+}
+
+function checkSummary_(issues, label) {
+  const err = issues.filter(x => x.level === '錯誤').length;
+  const warn = issues.filter(x => x.level === '提醒').length;
+  if (!err && !warn) return (label ? label + '：' : '') + '沒有發現問題';
+  return (label ? label + '：' : '') + err + ' 個錯誤、' + warn + ' 個提醒';
 }
 
 function clearBelowHeader_(name, col, numCols) {
