@@ -7,6 +7,10 @@ function routes_() {
     config: apiConfig_,
     lookupId: apiLookupId_,
     checkin: apiCheckin_,
+    heartbeat: apiHeartbeat_,
+    stageLoad: apiStageLoad_,
+    stageAsset: apiStageAsset_,
+    recordDraw: apiRecordDraw_,
   };
 }
 

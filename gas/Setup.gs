@@ -137,7 +137,7 @@ function buildConsole_(sh) {
     ['目前頁面', stage('目前頁面')],
     ['待同步筆數', stage('待同步筆數')],
     ['最後回報時間', stage('最後回報時間')],
-    ['', ''],
+    ['舊前台補寫被拒', '=IF(N(' + kv(SHEET.STAGE, '被拒絕的補寫', '0') + ')>0,' + kv(SHEET.STAGE, '被拒絕的補寫', '0') + '&" 筆，最後一次 "&TEXT(' + kv(SHEET.STAGE, '最後被拒絕時間', '') + ',"HH:mm:ss")&"，請以台下結果人工核對","—")'],
     ['錯誤監看', ''],
     ['最近 10 分鐘 GAS 錯誤', '=COUNTIFS(' + log + 'A2:A,">"&(NOW()-10/1440),' + log + 'C2:C,"失敗")'],
     ['', ''],
@@ -175,6 +175,8 @@ function buildConsole_(sh) {
       .setBackground('#F8C9C0').setFontColor('#8A1C0B').setRanges([sh.getRange('A25:B25')]).build(),
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=$B$28>0').setBackground('#F8C9C0').setRanges([sh.getRange('A28:B28')]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$B$26<>"—"').setBackground('#F8C9C0').setRanges([sh.getRange('A26:B26')]).build(),
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=$E34="作廢"').setStrikethrough(true).setFontColor('#999999').setRanges([sh.getRange('A34:E50')]).build(),
     SpreadsheetApp.newConditionalFormatRule()
