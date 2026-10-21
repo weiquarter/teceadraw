@@ -419,10 +419,6 @@ function stopRoll(cell, person, redrawn) {
     }
   });
 }
-async function rollAndStop(cell, person, redrawn) {
-  if (!cell._rolling) { startRoll(cell); await sleep(REDUCED ? 0 : 450); }
-  await stopRoll(cell, person, redrawn);
-}
 async function busy(fn) {
   U.busy++;
   try { await fn(); } finally { U.busy--; }
@@ -431,40 +427,42 @@ async function busy(fn) {
 // ── 抽獎流程 ───────────────────────────────────────────
 function notEnough() { toast('抽獎池人數不夠，請通知後台。', 4000); }
 
-async function redraw(idx, i) {
-  if (!available().length) { notEnough(); return; }
+// 等著被停下的格子：正在滾動、還沒有有效結果（空格或作廢格）
+function waitingCells(idx) {
+  return M.slots[idx].map((s, i) => (cells[i] && cells[i]._rolling && s.state !== 'won') ? i : -1).filter(i => i >= 0);
+}
+// 每一次抽獎都是兩下：第一下開始滾動，第二下停下並決定結果
+async function stopWaiting(idx, list) {
+  if (available().length < list.length) { notEnough(); return; }
   if (!canWrite()) return;
-  const person = pick(1)[0];
-  record({ t: 'draw', p: idx, s: i, w: person.id, r: 1 });
-  await busy(() => rollAndStop(cells[i], person, true));
-  updateProgress();
+  const slots = M.slots[idx];
+  const redraws = list.map(i => slots[i].state === 'void');
+  // 按下停止的瞬間決定結果、寫入本機並送出，之後的動畫只是呈現
+  const winners = pick(list.length);
+  winners.forEach((w, k) => record(Object.assign({ t: 'draw', p: idx, s: list[k], w: w.id }, redraws[k] ? { r: 1 } : {})));
+  await busy(() => Promise.all(list.map((i, k) =>
+    sleep(k * 500).then(() => stopRoll(cells[i], winners[k], redraws[k])).then(updateProgress))));
+}
+function startRedraw(idx, i) {
+  if (!available().length) { notEnough(); return; }
+  startRoll(cells[i]);
 }
 async function drawNext(idx) {
+  const waiting = waitingCells(idx);
+  if (waiting.length) return stopWaiting(idx, waiting);
   const p = M.prizes[idx];
   const slots = M.slots[idx];
   const voidIdx = slots.findIndex(s => s.state === 'void');
-  if (voidIdx >= 0) return redraw(idx, voidIdx);
+  if (voidIdx >= 0) { startRedraw(idx, voidIdx); return; }
   const empties = slots.map((s, i) => s.state === 'empty' ? i : -1).filter(i => i >= 0);
   if (!empties.length) {
     if (!M.done[idx]) record({ t: 'complete', p: idx });
     go('home');
     return;
   }
-  const n = p.mode === '一次抽完' ? empties.length : 1;
-  if (available().length < n) { notEnough(); return; }
-  if (!canWrite()) return;
-  // 按下的瞬間決定結果、寫入本機並送出，之後的動畫只是呈現
-  const winners = pick(n);
-  winners.forEach((w, k) => record({ t: 'draw', p: idx, s: empties[k], w: w.id }));
-  await busy(async () => {
-    if (n > 1) {
-      empties.forEach(i => { if (!cells[i]._rolling) startRoll(cells[i]); });
-      await Promise.all(empties.map((i, k) => sleep(k * 500).then(() => stopRoll(cells[i], winners[k], false).then(updateProgress))));
-    } else {
-      await rollAndStop(cells[empties[0]], winners[0], false);
-      updateProgress();
-    }
-  });
+  const list = p.mode === '一次抽完' ? empties : [empties[0]];
+  if (available().length < list.length) { notEnough(); return; }
+  list.forEach(i => startRoll(cells[i]));
 }
 
 function next() {
@@ -479,8 +477,12 @@ function next() {
     drawNext(U.cur);
   } else if (U.page === 'recall') {
     const idx = M.completed[U.recallPos];
-    const v = M.slots[idx].findIndex(s => s.state === 'void');
-    if (isEditable(idx) && v >= 0) { redraw(idx, v); return; }
+    if (isEditable(idx)) {
+      const waiting = waitingCells(idx);
+      if (waiting.length) { stopWaiting(idx, waiting); return; }
+      const v = M.slots[idx].findIndex(s => s.state === 'void');
+      if (v >= 0) { startRedraw(idx, v); return; }
+    }
     if (U.recallPos < M.completed.length - 1) { U.recallPos++; go('recall'); } else go('home');
   }
 }
@@ -511,6 +513,7 @@ function startVoid() {
     if (U.page === 'recall') toast('這個獎項已經不能作廢（下一個獎項已開抽）');
     return;
   }
+  if (waitingCells(curIndex()).length) { toast('請先按 → 停下滾動中的格子'); return; }
   const list = pickableSlots();
   if (!list.length) return;
   U.voidSel = { slot: null };
