@@ -576,6 +576,8 @@ function block(kind, data) {
     $blocker.innerHTML = '<div><h2>前台連結已失效</h2><p>請向後台索取新的前台專屬連結（摸彩系統 › 活動前 › 產生連結）。</p></div>';
   } else if (kind === 'badLink') {
     $blocker.innerHTML = '<div><h2>連結不完整</h2><p>請用 Sheet「摸彩系統 › 活動前 › 產生連結」裡的前台專屬連結開啟。</p></div>';
+  } else if (kind === 'outdated') {
+    $blocker.innerHTML = '<div><h2>後台程式版本太舊</h2><p>這個部署還沒有前台功能。請系統管理者到 Apps Script「部署 › 管理部署作業」，編輯<b>現有的</b>部署，把版本改成最新（不要新增部署，部署 ID 會變）。</p></div>';
   } else if (kind === 'apiVersion') {
     $blocker.innerHTML = `<div><h2>前台版本與這場活動不相容</h2><p>此活動需使用 /v${esc(data)}/ 網址。</p></div>`;
   }
@@ -619,7 +621,7 @@ async function loadDraw() {
       if (cached) { r = cached; toast('目前離線，先用上次載入的名單，連線後自動補寫', 4000); }
     }
     if (!r) { setTimeout(() => { loading = false; loadDraw(); }, 5000); return; }
-    if (!r.ok) { if (r.code === 'badKey') block('badKey'); return; }
+    if (!r.ok) { if (r.code === 'badKey') block('badKey'); else if (r.code === 'badAction') block('outdated'); return; }
     if (!r.ready) return;
     Sync.resetForVersion(r.version);
     M.version = r.version;
@@ -664,7 +666,7 @@ async function loadAssets(list) {
 
 function onBeat(r) {
   if (r.rejected) { updateStatus(); return; }
-  if (!r.ok) { if (r.code === 'badKey') block('badKey'); return; }
+  if (!r.ok) { if (r.code === 'badKey') block('badKey'); else if (r.code === 'badAction') block('outdated'); return; }
   if (r.apiVersion && r.apiVersion !== 1) { block('apiVersion', r.apiVersion); return; }
   const wasState = U.sysState;
   U.sysState = r.state;
