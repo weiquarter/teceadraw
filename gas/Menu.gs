@@ -45,7 +45,10 @@ function menuStartCheckin() {
 
 function menuCloseCheckin() {
   if (!checkState_(STATE.OPEN, '截止報到')) return;
-  if (!transition_(STATE.OPEN, STATE.CLOSED, '截止報到')) return;
+  if (!transition_(STATE.OPEN, STATE.CLOSED, '截止報到', () => {
+    // 先把還沒寫進 Sheet 的報到全部寫完，再切狀態
+    for (let i = 0; i < 10 && flushLocked_() > 0; i++) { /* 直到沒有待寫入 */ }
+  })) return;
   SpreadsheetApp.getUi().alert('已截止報到', '已報到的人仍可查詢自己的報到狀態，未報到的人會看到「報到已截止」。\n下一步：' + NEXT_STEP[STATE.CLOSED], SpreadsheetApp.getUi().ButtonSet.OK);
 }
 

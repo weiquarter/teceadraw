@@ -259,6 +259,7 @@ function menuClearData() {
     clearBelowHeader_(SHEET.PRIZES, 6, 1);
     clearBelowHeader_(SHEET.WINNERS, 1, WINNER_HEADERS.length);
     [SHEET.STAGE, SHEET.SNAPSHOT, SHEET.OPLOG].forEach(n => sheet_(n).clearContents());
+    discardPendingCheckins_();
     removeSystemProtections_();
     sysSet_('系統狀態', STATE.PREP);
     SpreadsheetApp.flush();

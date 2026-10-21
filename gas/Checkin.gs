@@ -1,7 +1,8 @@
-/** 報到：工號對照表（放 CacheService）、lookupId、checkin。checkin 不搶鎖，只寫自己那一列。 */
+/** 報到：工號對照表（放 CacheService）、lookupId、checkin。checkin 先記在 Script Properties 立刻回應，再由空著的請求批次寫進 Sheet。 */
 
 const MAP_TTL = 21600;
 const MAP_CHUNK = 30000;
+const PENDING = 'p:';
 
 // 對照表內容：工號 → [遮蔽姓名, 單位, 可否摸彩, 是否移除, 列號, 報到時間 HH:mm]
 const R = { NAME: 0, UNIT: 1, ELIGIBLE: 2, REMOVED: 3, ROW: 4, TIME: 5 };
@@ -13,7 +14,8 @@ function apiLookupId_(p) {
   const id = normId(p.id);
   const rec = id ? findPerson_(id) : null;
   if (!rec || rec[R.REMOVED]) return { ok: true, result: 'notFound' };
-  const time = CacheService.getScriptCache().get('ci:' + id) || rec[R.TIME];
+  const time = checkinTimeOf_(id, rec);
+  flushCheckins_();
   if (!time && state !== STATE.OPEN) return { ok: true, result: 'closed' };
   return {
     ok: true, result: 'found', id: id,
@@ -26,36 +28,84 @@ function apiCheckin_(p) {
   if (state === STATE.PREP) return { ok: true, result: 'prep' };
   if (state === STATE.ENDED) return { ok: true, result: 'ended' };
   const id = normId(p.id);
-  let rec = id ? findPerson_(id) : null;
-  if (!rec) return { ok: true, result: 'notFound' };
+  const rec = id ? findPerson_(id) : null;
+  if (!rec || rec[R.REMOVED]) return { ok: true, result: 'notFound' };
+  const who = { id: id, name: rec[R.NAME], unit: rec[R.UNIT], eligible: !!rec[R.ELIGIBLE] };
 
-  const sh = sheet_(SHEET.PEOPLE);
-  let row = sh.getRange(rec[R.ROW], 1, 1, PEOPLE_HEADERS.length).getDisplayValues()[0];
-  if (normId(row[PC.ID - 1]) !== id) {
-    // 有人刪列或排序，列號跑掉了
-    rec = rebuildMap_()[id];
-    if (!rec) return { ok: true, result: 'notFound' };
-    row = sh.getRange(rec[R.ROW], 1, 1, PEOPLE_HEADERS.length).getDisplayValues()[0];
-    if (normId(row[PC.ID - 1]) !== id) throw new Error('對照表重建後列號仍不吻合');
-  }
-
-  if (String(row[PC.REG - 1]).trim() === '移除') return { ok: true, result: 'notFound' };
-  const who = {
-    id: id,
-    name: maskName(row[PC.NAME - 1]),
-    unit: String(row[PC.UNIT - 1]).trim(),
-    eligible: String(row[PC.ELIGIBLE - 1]).trim() === '是',
-  };
-  if (String(row[PC.TIME - 1]).trim() !== '') {
-    return Object.assign({ ok: true, result: 'already', time: hhmm_(row[PC.TIME - 1]) }, who);
+  const already = checkinTimeOf_(id, rec);
+  if (already) {
+    flushCheckins_();
+    return Object.assign({ ok: true, result: 'already', time: already }, who);
   }
   if (state !== STATE.OPEN) return { ok: true, result: 'closed' };
 
-  const now = new Date();
-  sh.getRange(rec[R.ROW], PC.TIME).setValue(now);
-  const time = Utilities.formatDate(now, 'Asia/Taipei', 'HH:mm');
-  CacheService.getScriptCache().put('ci:' + id, time, MAP_TTL);
+  const now = Date.now();
+  PropertiesService.getScriptProperties().setProperty(PENDING + id, String(now));
+  const time = Utilities.formatDate(new Date(now), 'Asia/Taipei', 'HH:mm');
+  const cache = CacheService.getScriptCache();
+  cache.putAll({ ['ci:' + id]: time, pend: '1' }, MAP_TTL);
+  flushCheckins_();
   return Object.assign({ ok: true, result: 'done', time: time }, who);
+}
+
+// 報到時間：剛報到的看快取，尚未寫進 Sheet 的看待寫入清單，其餘看對照表
+function checkinTimeOf_(id, rec) {
+  const hit = CacheService.getScriptCache().get('ci:' + id);
+  if (hit) return hit;
+  const pending = PropertiesService.getScriptProperties().getProperty(PENDING + id);
+  if (pending) return Utilities.formatDate(new Date(Number(pending)), 'Asia/Taipei', 'HH:mm');
+  return rec[R.TIME];
+}
+
+// 有待寫入的報到、而且鎖是空的才寫；寫完若又有新的進來，最多再接著寫兩輪
+function flushCheckins_() {
+  const cache = CacheService.getScriptCache();
+  if (!cache.get('pend')) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return;
+  try {
+    for (let round = 0; round < 3 && cache.get('pend'); round++) flushLocked_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 呼叫前要先持有 Script Lock。依工號欄重新找列，不依賴記住的列號；已有報到時間的不覆寫
+function flushLocked_() {
+  const t0 = Date.now();
+  CacheService.getScriptCache().remove('pend');
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all).filter(k => k.indexOf(PENDING) === 0);
+  if (!keys.length) return 0;
+
+  const sh = sheet_(SHEET.PEOPLE);
+  const last = sh.getLastRow();
+  const ids = last >= 2 ? sh.getRange(2, PC.ID, last - 1, 1).getDisplayValues() : [];
+  const times = last >= 2 ? sh.getRange(2, PC.TIME, last - 1, 1).getValues() : [];
+  const rowOf = {};
+  ids.forEach((r, i) => {
+    const id = normId(r[0]);
+    if (id && !(id in rowOf)) rowOf[id] = i;
+  });
+
+  const missing = [];
+  keys.forEach(k => {
+    const id = k.slice(PENDING.length);
+    const i = rowOf[id];
+    if (i == null) missing.push(id);
+    else if (times[i][0] === '') sh.getRange(i + 2, PC.TIME).setValue(new Date(Number(all[k])));
+  });
+  SpreadsheetApp.flush();
+  keys.forEach(k => props.deleteProperty(k));
+  if (missing.length) log_('報到寫入', false, Date.now() - t0, missing.join(','), '', '人員分頁找不到這些工號，報到時間沒有寫入');
+  return keys.length;
+}
+
+function discardPendingCheckins_() {
+  const props = PropertiesService.getScriptProperties();
+  Object.keys(props.getProperties()).filter(k => k.indexOf(PENDING) === 0).forEach(k => props.deleteProperty(k));
+  CacheService.getScriptCache().remove('pend');
 }
 
 // 查不到時重讀人員分頁（現場新增的人），每 10 秒最多一次
