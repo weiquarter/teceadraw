@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+<base target="_blank">
+<style>
+  body { font: 14px/1.6 "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: #3E3236; margin: 0; padding: 4px 8px; }
+  h3 { margin: 14px 0 6px; font-size: 15px; }
+  ol { margin: 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  b.k { background: #FCE9EE; padding: 0 6px; border-radius: 4px; font-weight: 500; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  input { flex: 1; font: inherit; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; }
+  button { font: inherit; padding: 8px 18px; border: 0; border-radius: 8px; background: #F6B8C6; color: #3E3236; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #msg { margin-top: 10px; padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; display: none; }
+  #msg.ok { display: block; background: #E3F4EC; }
+  #msg.bad { display: block; background: #FDE7E4; }
+  .muted { color: #6E5A60; }
+</style>
+</head>
+<body>
+  <h3>① 資料夾</h3>
+  <div>已在這份 Sheet 旁邊建立：
+    <a href="<?= folders['素材'] ?>">素材</a>（主視覺、獎品照片）、
+    <a href="<?= folders['備份'] ?>">備份</a>
+  </div>
+
+  <h3>② 部署 GAS（系統管理者）</h3>
+  <ol>
+    <li>選單「擴充功能 › Apps Script」打開程式編輯器</li>
+    <li>右上角「部署 › 新增部署作業」，類型選 <b class="k">網頁應用程式</b></li>
+    <li>執行身分選 <b class="k">我</b>，誰可以存取選 <b class="k">任何人</b></li>
+    <li>按「部署」，依畫面完成授權</li>
+    <li>複製「部署作業 ID」，貼到下面按「檢查」</li>
+  </ol>
+  <p class="muted">之後程式有更新時，用「管理部署作業 › 編輯 › 版本：新版本」，部署作業 ID 不會變，連結和 QR code 都不用重印。</p>
+
+  <h3>③ 自動檢查</h3>
+  <div class="row">
+    <input id="dep" placeholder="AKfycb… 或網頁應用程式網址" value="<?= deployId ?>">
+    <button id="go" type="button">檢查</button>
+  </div>
+  <div id="msg"></div>
+
+<script>
+  const go = document.getElementById('go');
+  const msg = document.getElementById('msg');
+  function show(ok, text) { msg.className = ok ? 'ok' : 'bad'; msg.textContent = text; go.disabled = false; go.textContent = '檢查'; }
+  go.onclick = () => {
+    go.disabled = true; go.textContent = '檢查中…';
+    google.script.run
+      .withSuccessHandler(r => show(r.ok, r.ok ? r.message + '\n\n下一步：「摸彩系統 › 活動前 › 產生連結」。' : r.message))
+      .withFailureHandler(e => show(false, '檢查時發生錯誤：' + e.message))
+      .verifyDeployment(document.getElementById('dep').value);
+  };
+</script>
+</body>
+</html>

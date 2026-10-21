@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+<base target="_blank">
+<style>
+  body { font: 14px/1.6 "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: #3E3236; margin: 0; padding: 4px 8px; }
+  h3 { margin: 12px 0 6px; font-size: 15px; }
+  .url { display: flex; gap: 8px; }
+  .url input { flex: 1; font: 13px monospace; padding: 7px 9px; border: 1px solid #ccc; border-radius: 8px; color: #3E3236; }
+  button, a.btn { font: inherit; padding: 7px 14px; border: 0; border-radius: 8px; background: #F6B8C6; color: #3E3236; font-weight: 700; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .qr { display: flex; gap: 16px; align-items: center; margin-top: 10px; }
+  .qr img { width: 220px; height: 220px; border: 1px solid #eee; border-radius: 8px; }
+  .warn { background: #FDE7E4; padding: 8px 12px; border-radius: 8px; margin-top: 6px; }
+  .muted { color: #6E5A60; }
+</style>
+<?!= include_('QrLib') ?>
+</head>
+<body>
+  <h3>報到連結（給所有員工）</h3>
+  <div class="url"><input id="ci" readonly value="<?= checkinUrl ?>"><button type="button" data-copy="ci">複製</button></div>
+  <div class="qr">
+    <img id="qrImg" alt="報到 QR code">
+    <div>
+      <p class="muted">QR code 在這台電腦產生，沒有把網址送給任何外部服務。<br>可以右鍵另存圖片，或按下面按鈕下載。</p>
+      <a class="btn" id="dl" download="報到QRcode.png">下載 PNG</a>
+    </div>
+  </div>
+
+  <h3>前台專屬連結（只給前台操作員）</h3>
+  <div class="url"><input id="st" readonly value="<?= stageUrl ?>"><button type="button" data-copy="st">複製</button></div>
+  <div class="warn">這個連結內含前台金鑰，拿到的人就能操作抽獎畫面。請不要貼到群組或公開的地方；懷疑外流時用「進階 › 重新產生前台連結」讓舊連結失效。</div>
+
+<script>
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+    const el = document.getElementById(b.dataset.copy);
+    el.select(); document.execCommand('copy');
+    b.textContent = '已複製'; setTimeout(() => { b.textContent = '複製'; }, 1500);
+  });
+  // 印刷用：放大成 1024px PNG
+  const qr = qrcode(0, 'M');
+  qr.addData(document.getElementById('ci').value);
+  qr.make();
+  const n = qr.getModuleCount(), quiet = 4, size = 1024;
+  const cell = Math.floor(size / (n + quiet * 2));
+  const c = document.createElement('canvas');
+  c.width = c.height = cell * (n + quiet * 2);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect((k + quiet) * cell, (r + quiet) * cell, cell, cell);
+  const png = c.toDataURL('image/png');
+  document.getElementById('qrImg').src = png;
+  document.getElementById('dl').href = png;
+</script>
+</body>
+</html>

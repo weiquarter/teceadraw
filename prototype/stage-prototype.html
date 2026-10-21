@@ -1,0 +1,1072 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>摸彩前台原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Nunito:wght@700&display=swap">
+<style>
+/* 版面概念：固定 1920×1080 舞台，等比例縮放置中，補邊與主題底色同色。
+   單一淺色主題（投影用馬卡龍色系，刻意不做深色模式），三套配色以 data-palette 切換。
+   --ink 已依 15.3 節實測調深，確保在 surface／primary／secondary 上對比度 ≥ 7:1。 */
+:root {
+  color-scheme: light;
+  --bg: #FFF5F3;
+  --surface: #FFFFFF;
+  --primary: #F6B8C6;
+  --secondary: #B9E2D3;
+  --ink: #3E3236;
+  --ink-soft: #6E5A60;
+  --pending: color-mix(in srgb, var(--primary) 22%, var(--bg));
+  --shadow: 0 12px 32px color-mix(in srgb, var(--ink) 13%, transparent);
+  --ann: #1F5FBF;
+  --ann-safe: #B5481C;
+  --f-display: "Huninn", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --f-body: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --f-num: "Nunito", "Huninn", "Noto Sans TC", sans-serif;
+}
+:root[data-palette="mint"] {
+  --bg: #F3FAF6; --surface: #FFFFFF; --primary: #A6DCC8; --secondary: #FFE3A1;
+  --ink: #293F3A; --ink-soft: #4F6660;
+}
+:root[data-palette="lavender"] {
+  --bg: #F6F4FB; --surface: #FFFFFF; --primary: #C9BCEB; --secondary: #B5D3F0;
+  --ink: #312E45; --ink-soft: #595570;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); -webkit-font-smoothing: antialiased;
+}
+
+/* ── 舞台 ── */
+#stage {
+  position: fixed; left: 0; top: 0; width: 1920px; height: 1080px;
+  transform-origin: 0 0; overflow: hidden; background: var(--bg);
+  cursor: default; user-select: none;
+}
+.page { position: absolute; inset: 0; animation: pageIn 360ms ease-out both; }
+.page.out { animation: pageOut 300ms ease-in both; pointer-events: none; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes pageOut { to { opacity: 0; transform: translateY(-8px); } }
+
+/* 主頁 */
+.logo-area { position: absolute; left: 60px; top: 50px; width: 240px; height: 120px; }
+.home-title {
+  position: absolute; left: 160px; right: 160px; top: 330px;
+  display: flex; flex-direction: column; align-items: center; gap: 30px; text-align: center;
+}
+.home-title h1 {
+  margin: 0; font: 400 120px/1.1 var(--f-display); letter-spacing: 0.04em; color: var(--ink);
+  text-wrap: balance;
+}
+.home-title p { margin: 0; font: 500 40px/1.4 var(--f-body); color: var(--ink-soft); letter-spacing: 0.02em; }
+.qr-card {
+  position: absolute; left: 1440px; top: 600px; width: 400px; height: 400px; box-sizing: border-box;
+  background: var(--surface); border-radius: 32px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+.qr-card.off { opacity: 0; transform: translateY(14px); }
+.qr { width: 256px; height: 256px; display: grid; place-items: center; }
+.qr img, .qr canvas { width: 256px !important; height: 256px !important; display: block; }
+.qr-fallback {
+  width: 256px; height: 256px; border-radius: 16px; display: grid; place-items: center;
+  background: repeating-conic-gradient(var(--ink) 0 25%, var(--surface) 0 50%) 0 0 / 32px 32px;
+  color: var(--surface); font: 700 28px var(--f-body);
+}
+.qr-fallback span { background: var(--ink); padding: 6px 14px; border-radius: 10px; }
+.qr-count { display: flex; align-items: baseline; gap: 14px; font: 500 28px var(--f-body); color: var(--ink-soft); }
+.qr-count b { font: 700 54px var(--f-num); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* 獎項頁 */
+.photo {
+  position: absolute; left: 150px; top: 140px; width: 800px; height: 800px;
+  border-radius: 32px; overflow: hidden; box-shadow: var(--shadow);
+}
+.ph-img {
+  position: absolute; inset: 0; background: var(--secondary);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+}
+.ph-img .ph-shape {
+  width: 300px; height: 300px; border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 55%, var(--secondary));
+  display: grid; place-items: center;
+}
+.ph-img .ph-shape i {
+  display: block; width: 150px; height: 120px; border-radius: 22px; background: var(--primary);
+  position: relative;
+}
+.ph-img .ph-shape i::before {
+  content: ""; position: absolute; left: 50%; top: -34px; width: 70px; height: 34px;
+  transform: translateX(-50%); border-radius: 34px 34px 0 0; border: 12px solid var(--primary); border-bottom: 0;
+  box-sizing: border-box;
+}
+.ph-img .ph-name { font: 400 60px/1.2 var(--f-display); color: var(--ink); text-align: center; padding: 0 60px; text-wrap: balance; }
+.ph-img .ph-cap { font: 500 24px var(--f-body); color: var(--ink-soft); letter-spacing: 0.08em; }
+.photo.none { box-shadow: none; background: var(--primary); display: flex; align-items: center; justify-content: center; gap: 12px; }
+.photo.none .big { font: 700 380px/1 var(--f-num); color: var(--ink); font-variant-numeric: tabular-nums; }
+.photo.none .unit { font: 400 96px var(--f-display); color: var(--ink); margin-top: 120px; }
+.prize-info {
+  position: absolute; left: 1050px; right: 110px; top: 0; bottom: 0;
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 30px;
+}
+.rank {
+  font: 400 56px/1 var(--f-display); color: var(--ink); background: var(--primary);
+  padding: 18px 40px; border-radius: 999px;
+}
+.item { margin: 0; font: 400 96px/1.18 var(--f-display); color: var(--ink); text-wrap: balance; }
+.qty-line { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.qty { font: 500 56px var(--f-body); color: var(--ink); }
+.qty b { font: 700 64px var(--f-num); font-variant-numeric: tabular-nums; padding: 0 6px; }
+.mode-tag {
+  font: 500 32px var(--f-body); color: var(--ink); background: var(--secondary);
+  padding: 10px 28px; border-radius: 999px;
+}
+
+/* 抽獎頁 */
+.bar {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 200px; box-sizing: border-box;
+  padding: 0 120px; background: var(--primary);
+  display: flex; align-items: center; justify-content: space-between; gap: 40px;
+}
+.bar-title { font: 400 56px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-title .r { margin-right: 28px; }
+.bar-prog { font: 700 56px var(--f-num); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.done-chip {
+  font: 500 34px var(--f-body); color: var(--ink); background: var(--surface);
+  padding: 12px 32px; border-radius: 999px; white-space: nowrap;
+}
+.names {
+  position: absolute; left: 210px; top: 265px; width: 1500px; height: 750px;
+  display: grid; align-content: center; justify-content: center; gap: 30px 40px;
+}
+.names.c1 { grid-template-columns: 1200px; }
+.names.c2 { grid-template-columns: repeat(2, 730px); grid-auto-flow: column; grid-template-rows: repeat(var(--rows), 126px); }
+.cell {
+  --h: 126px; --ns: 72px;
+  position: relative; height: var(--h); border-radius: 28px; overflow: hidden;
+  background: var(--pending); transition: background 260ms ease, box-shadow 260ms ease;
+}
+.names.c2 .cell { --ns: 52px; }
+.names.solo .cell { --h: 200px; }
+.cell.rolling { background: var(--secondary); }
+.cell.won, .cell.void { background: var(--surface); box-shadow: var(--shadow); }
+.cell.landed { animation: pop 340ms ease-out; }
+@keyframes pop { 0% { transform: scale(1); } 45% { transform: scale(1.05); } 100% { transform: scale(1); } }
+.cell.selected { box-shadow: var(--shadow), inset 0 0 0 8px var(--primary); }
+.win { position: absolute; inset: 0; display: flex; align-items: center; perspective: 1400px; }
+.label {
+  width: 100%; box-sizing: border-box; padding: 0 56px;
+  display: flex; align-items: baseline; justify-content: center;
+  white-space: nowrap; overflow: hidden;
+}
+.label .unit { font: 500 var(--us, calc(var(--ns) * 0.6)) var(--f-body); color: var(--ink-soft); }
+.label .sep { font: 500 var(--us, calc(var(--ns) * 0.6)) var(--f-body); color: var(--ink-soft); padding: 0 0.12em; }
+.label .nm { font: 400 var(--nsz, var(--ns))/1.15 var(--f-display); color: var(--ink); }
+.label .tag { font: 500 calc(var(--nsz, var(--ns)) * 0.5) var(--f-num); color: var(--ink-soft); padding-left: 0.2em; }
+.cell.void .label { opacity: 0.3; }
+.cell.void .label span { text-decoration: line-through; text-decoration-thickness: 0.08em; }
+.mark {
+  position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+  font: 700 26px var(--f-body); color: var(--ink); background: var(--pending);
+  padding: 6px 16px; border-radius: 999px; display: none;
+}
+.cell.void .mark { display: block; }
+.redo {
+  position: absolute; left: 22px; top: 12px; font: 500 20px var(--f-body); color: var(--ink-soft); display: none;
+}
+.cell.redrawn.won .redo { display: block; }
+.badge {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%; background: var(--ink); color: var(--surface);
+  font: 700 26px var(--f-num); display: none; place-items: center; z-index: 3;
+}
+.cell.pickable .badge { display: grid; }
+.roll-text { display: flex; width: 100%; }
+/* B 直向轉輪 */
+.reel { position: absolute; inset: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 24%, #000 76%, transparent);
+  mask-image: linear-gradient(transparent, #000 24%, #000 76%, transparent); }
+.strip { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+.strip.loop { animation: loop 0.9s linear infinite; }
+@keyframes loop { to { transform: translateY(-50%); } }
+.row { height: var(--h); display: flex; align-items: center; }
+/* C 翻牌 */
+.flip { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 600ms cubic-bezier(.3,.7,.3,1); }
+.flip.on { transform: rotateY(180deg); }
+.face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 28px; }
+.face.front { background: var(--primary); font: 400 var(--ns) var(--f-display); color: var(--ink); animation: breathe 1.5s ease-in-out infinite; }
+.face.back { background: var(--surface); transform: rotateY(180deg); }
+@keyframes breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.07); } }
+.fadein { animation: fadeIn 420ms ease-out both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.void-hint {
+  position: absolute; left: 0; right: 0; bottom: 18px; text-align: center;
+  font: 500 24px var(--f-body); color: var(--ink-soft); opacity: 0.85;
+}
+
+/* 特殊名字預覽 */
+.spec-note { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font: 500 24px var(--f-body); color: var(--ink-soft); }
+
+/* ── 客製化標示圖層（G） ── */
+#ov { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
+.ann { position: absolute; box-sizing: border-box; font: 500 22px/1.3 var(--f-body); }
+.ann.img { background: repeating-linear-gradient(45deg, rgba(31,95,191,.24) 0 14px, rgba(31,95,191,.07) 14px 28px); }
+.ann.safe { background: repeating-linear-gradient(-45deg, rgba(181,72,28,.20) 0 14px, rgba(181,72,28,.05) 14px 28px); }
+.ann.text { border: 3px dashed var(--ann); border-radius: 12px; }
+.ann.frame { border: 4px dashed var(--ann); inset: 6px; }
+.ann .tg {
+  position: absolute; left: -3px; bottom: 100%; margin-bottom: 6px; white-space: nowrap;
+  background: var(--ann); color: #fff; padding: 4px 12px; border-radius: 8px;
+}
+.ann.safe .tg { background: var(--ann-safe); }
+.ann .tg.in { bottom: auto; top: 8px; left: 8px; margin: 0; }
+.ann .tg.below { bottom: auto; top: 100%; margin: 6px 0 0; }
+.dot { position: absolute; display: flex; align-items: center; gap: 8px; font: 500 20px var(--f-body); color: #fff; }
+.dot i { width: 24px; height: 24px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px var(--ann); }
+.dot span { background: var(--ann); padding: 2px 10px; border-radius: 8px; }
+.legend {
+  position: absolute; right: 36px; top: 236px; width: 380px; box-sizing: border-box;
+  background: rgba(255,255,255,.96); color: #222; border-radius: 22px; padding: 24px 26px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.14); font: 500 21px/1.45 var(--f-body);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.legend h3 { margin: 0 0 4px; font: 700 24px var(--f-body); }
+.legend .li { display: flex; gap: 12px; align-items: center; }
+.legend .sw { flex: none; width: 46px; height: 30px; border-radius: 6px; }
+.legend .sw.img { background: repeating-linear-gradient(45deg, rgba(31,95,191,.45) 0 6px, rgba(31,95,191,.12) 6px 12px); }
+.legend .sw.safe { background: repeating-linear-gradient(-45deg, rgba(181,72,28,.42) 0 6px, rgba(181,72,28,.1) 6px 12px); }
+.legend .sw.text { border: 3px dashed var(--ann); box-sizing: border-box; }
+.legend .tokens { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 4px; font-size: 18px; }
+.legend .tokens div { display: flex; align-items: center; gap: 8px; }
+.legend .tokens i { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); flex: none; }
+
+/* ── 視窗層（不隨舞台縮放） ── */
+#black { position: fixed; inset: 0; background: #000; z-index: 90; }
+#toast {
+  position: fixed; left: 16px; bottom: 44px; z-index: 80; font: 500 14px var(--f-body);
+  background: var(--ink); color: var(--surface); padding: 6px 12px; border-radius: 8px;
+  opacity: 0; transition: opacity 200ms;
+}
+#toast.show { opacity: 0.92; }
+#status {
+  position: fixed; left: 16px; bottom: 12px; z-index: 80; font: 500 12px var(--f-body);
+  color: var(--ink-soft); background: color-mix(in srgb, var(--surface) 85%, transparent);
+  padding: 4px 10px; border-radius: 6px; max-width: calc(100vw - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#focusDot {
+  position: fixed; right: 12px; bottom: 12px; z-index: 85; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--ink-soft); opacity: 0.6;
+}
+#help {
+  position: fixed; right: 16px; top: 16px; bottom: 56px; z-index: 85; width: min(400px, calc(100vw - 32px));
+  overflow: auto; box-sizing: border-box; padding: 18px 20px;
+  background: var(--surface); color: var(--ink); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.18);
+  font: 400 14px/1.6 var(--f-body);
+}
+#help h2 { margin: 0 0 8px; font: 700 18px var(--f-body); }
+#help h3 { margin: 14px 0 6px; font: 700 14px var(--f-body); color: var(--ink-soft); letter-spacing: 0.04em; }
+#help table { border-collapse: collapse; width: 100%; }
+#help td { padding: 3px 0; vertical-align: top; }
+#help td:first-child { white-space: nowrap; padding-right: 12px; font-weight: 700; }
+#help kbd { font: 700 12px var(--f-num); background: var(--pending); border-radius: 5px; padding: 1px 6px; }
+#help .btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#help button {
+  font: 500 14px var(--f-body); color: var(--ink); background: var(--pending); border: 0; border-radius: 10px;
+  padding: 9px 8px; cursor: pointer;
+}
+#help button:hover { background: var(--secondary); }
+#help button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+#help p { margin: 6px 0; color: var(--ink-soft); }
+#helpBtn {
+  position: fixed; right: 12px; bottom: 30px; z-index: 86; width: 40px; height: 40px; border-radius: 50%;
+  border: 0; background: var(--surface); color: var(--ink); font: 700 18px var(--f-num); box-shadow: var(--shadow);
+  display: none; cursor: pointer;
+}
+@media (pointer: coarse) { #helpBtn { display: block; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .page, .page.out { animation-duration: 1ms; }
+  .strip.loop, .face.front { animation: none; }
+  .cell.landed { animation: none; }
+}
+</style>
+
+<div id="stage" aria-live="polite"></div>
+<div id="black" hidden></div>
+<div id="toast"></div>
+<div id="status" hidden></div>
+<div id="focusDot" hidden title="點一下畫面，鍵盤才會有反應"></div>
+<button id="helpBtn" type="button" aria-label="按鍵說明">?</button>
+<aside id="help" hidden>
+  <h2>按鍵說明</h2>
+  <table>
+    <tr><td><kbd>→</kbd> <kbd>空白</kbd> <kbd>PgDn</kbd></td><td>下一頁、抽獎、補抽</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>PgUp</kbd></td><td>上一頁；在主頁時回看已完成的獎項</td></tr>
+    <tr><td><kbd>X</kbd> → 數字 → <kbd>Enter</kbd></td><td>作廢／取消作廢指定格子（<kbd>0</kbd>＝第 10 格，<kbd>Esc</kbd> 取消）</td></tr>
+    <tr><td><kbd>B</kbd></td><td>黑畫面</td></tr>
+    <tr><td><kbd>F</kbd></td><td>全螢幕</td></tr>
+    <tr><td><kbd>T</kbd></td><td>切換配色主題（原型專用）</td></tr>
+    <tr><td><kbd>S</kbd></td><td>切換拉霸樣式（原型專用）</td></tr>
+    <tr><td><kbd>G</kbd></td><td>客製化區域標示（原型專用）</td></tr>
+    <tr><td><kbd>C</kbd></td><td>主頁報到中／已截止（原型專用）</td></tr>
+    <tr><td><kbd>R</kbd></td><td>重設所有假資料（原型專用）</td></tr>
+    <tr><td><kbd>?</kbd></td><td>顯示或隱藏這個說明與狀態列</td></tr>
+  </table>
+  <h3>沒有鍵盤時</h3>
+  <p>點舞台任一處＝下一頁。作廢時，點格子選取，再點一次同一格確認；點其他地方取消。</p>
+  <div class="btns">
+    <button type="button" data-act="prev">← 上一頁</button>
+    <button type="button" data-act="next">下一頁 →</button>
+    <button type="button" data-act="void">作廢（X）</button>
+    <button type="button" data-act="black">黑畫面（B）</button>
+    <button type="button" data-act="full">全螢幕（F）</button>
+    <button type="button" data-act="theme">換配色（T）</button>
+    <button type="button" data-act="style">換拉霸（S）</button>
+    <button type="button" data-act="guide">區域標示（G）</button>
+    <button type="button" data-act="checkin">報到狀態（C）</button>
+    <button type="button" data-act="reset">重設（R）</button>
+    <button type="button" data-act="specimen">特殊名字預覽</button>
+    <button type="button" data-act="help">關閉說明</button>
+  </div>
+  <h3>關於原型</h3>
+  <p>全部是假資料，不連 GAS 與 Sheet。抽獎使用與正式版相同的 crypto.getRandomValues＋拒絕取樣，每人機率相等。</p>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+const PALETTES = [
+  { id: 'strawberry', name: '草莓牛奶' },
+  { id: 'mint', name: '薄荷檸檬' },
+  { id: 'lavender', name: '薰衣草藍莓' },
+];
+const STYLES = [
+  { id: 'A', name: 'A 跳字' },
+  { id: 'B', name: 'B 直向轉輪' },
+  { id: 'C', name: 'C 翻牌' },
+];
+const PAGE_NAMES = { home: '主頁', prize: '獎項頁', draw: '抽獎頁', recall: '回看', specimen: '特殊名字預覽' };
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EVENT = { title: '2027 春酒', sub: '2027 年 2 月 19 日（五）晚上 6 點・宴會廳' };
+const CHECKIN_URL = 'https://example.github.io/lottery/v1/checkin?e=DEMO';
+
+const $stage = document.getElementById('stage');
+const $black = document.getElementById('black');
+const $toast = document.getElementById('toast');
+const $status = document.getElementById('status');
+const $help = document.getElementById('help');
+const $focusDot = document.getElementById('focusDot');
+
+// ── 假資料 ─────────────────────────────────────────────
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const UNITS = ['業務部', '行政部', '人資處', '財務部', '資訊處系統開發部第二課', '教保一組', '教保二組',
+  '總務組', '企劃部', '研發中心', '客服部', '法務室', '稽核室', '公關部', '品保部'];
+const SURNAMES = '陳林黃張李王吳劉蔡楊許鄭謝郭洪曾邱廖賴周徐蘇葉莊呂江何蕭羅高'.split('');
+const GIVEN = ['怡君', '雅婷', '家豪', '志明', '淑芬', '美玲', '建宏', '俊傑', '佳穎', '宗翰', '冠宇', '欣怡',
+  '承恩', '子晴', '柏翰', '詩涵', '宜蓁', '彥廷', '品妤', '信宏', '惠如', '明哲', '雅雯', '思妤', '家瑋',
+  '慧君', '書豪', '婉婷', '文傑', '嘉玲', '芷若', '育誠'];
+const SPECIALS = [
+  { unit: '業務部', name: '陳怡君', id: '102345', note: '同單位同名同姓' },
+  { unit: '業務部', name: '陳怡君', id: '118872', note: '同單位同名同姓' },
+  { unit: '教保一組', name: '王堃霖', id: '003310', note: '罕用字' },
+  { unit: '人資處', name: '黃㛃安', id: '004127', note: '罕用字' },
+  { unit: '研發中心', name: '張喆宇', id: '005066', note: '罕用字' },
+  { unit: '財務部', name: '歐陽靜文', id: '006218', note: '四字複姓' },
+  { unit: '資訊處系統開發部第二課', name: '林家豪', id: '007431', note: '長單位名稱' },
+];
+function buildPeople() {
+  const rnd = mulberry32(20270219);
+  const list = SPECIALS.map(p => ({ ...p }));
+  let seq = 1201;
+  while (list.length < 600) {
+    const unit = UNITS[list.length % UNITS.length];
+    const name = SURNAMES[Math.floor(rnd() * SURNAMES.length)] + GIVEN[Math.floor(rnd() * GIVEN.length)];
+    list.push({ unit, name, id: String(seq++).padStart(6, '0') });
+  }
+  const count = new Map();
+  list.forEach(p => { const k = p.unit + '|' + p.name; count.set(k, (count.get(k) || 0) + 1); });
+  list.forEach((p, i) => { p.idx = i; p.dup = count.get(p.unit + '|' + p.name) > 1; });
+  return list;
+}
+const PEOPLE = buildPeople();
+
+const PRIZE_DEF = [
+  { rank: '普獎', item: '全聯禮券 500 元', qty: 10, mode: 'all', photo: true },
+  { rank: '三獎', item: '氣炸鍋', qty: 5, mode: 'one', photo: true },
+  { rank: '二獎', item: 'Dyson 吹風機', qty: 3, mode: 'one', photo: false },
+  { rank: '加碼獎', item: '董事長紅包', qty: 6, mode: 'all', photo: true },
+  { rank: '頭獎', item: 'iPhone', qty: 1, mode: 'one', photo: true },
+];
+
+// ── 狀態 ───────────────────────────────────────────────
+const S = {
+  palette: 0, style: 0, overlay: false, help: false, black: false,
+  page: 'home', cur: 0, recallPos: 0, completed: [], recallLocked: false,
+  checkinOpen: true, count: 482, busy: 0, voidSel: null,
+  prizes: [], pool: [], huninn: null, assets: false,
+};
+function reset() {
+  stopAllRolls();
+  S.prizes = PRIZE_DEF.map(d => ({ ...d, status: '未抽', slots: Array.from({ length: d.qty }, () => ({ state: 'empty', person: null, redrawn: false, history: [] })) }));
+  S.pool = PEOPLE.map(p => p.idx);
+  S.page = 'home'; S.cur = 0; S.recallPos = 0; S.completed = []; S.recallLocked = false;
+  S.checkinOpen = true; S.count = 482; S.busy = 0; S.voidSel = null;
+}
+
+// ── 亂數（與正式版相同：crypto.getRandomValues＋拒絕取樣）──
+function randInt(n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  let x;
+  do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= limit);
+  return x % n;
+}
+function drawOne() {
+  if (!S.pool.length) return null;
+  const i = randInt(S.pool.length);
+  return PEOPLE[S.pool.splice(i, 1)[0]];
+}
+// 滾動畫面用的名字只是動畫，從目前抽獎池隨意取，不影響結果
+function rollName() {
+  const src = S.pool.length ? S.pool : PEOPLE.map(p => p.idx);
+  return PEOPLE[src[Math.floor(Math.random() * src.length)]];
+}
+
+// ── 工具 ───────────────────────────────────────────────
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function labelHTML(p) {
+  if (!p) return '<div class="label"></div>';
+  const tag = p.dup ? `<span class="tag">（${esc(p.id.slice(-4))}）</span>` : '';
+  return `<div class="label"><span class="unit">${esc(p.unit)}</span><span class="sep">_</span><span class="nm">${esc(p.name)}</span>${tag}</div>`;
+}
+function fitLabel(label) {
+  if (!label) return;
+  const cell = label.closest('.cell');
+  if (!cell) return;
+  const ns = parseFloat(getComputedStyle(cell).getPropertyValue('--ns')) || 72;
+  let us = ns * 0.6, nsz = ns;
+  label.style.setProperty('--us', us + 'px');
+  label.style.setProperty('--nsz', nsz + 'px');
+  // 名字太長時，先縮單位名稱，再縮姓名
+  while (label.scrollWidth > label.clientWidth && us > ns * 0.34) { us -= 2; label.style.setProperty('--us', us + 'px'); }
+  while (label.scrollWidth > label.clientWidth && nsz > ns * 0.55) { nsz -= 2; label.style.setProperty('--nsz', nsz + 'px'); }
+}
+let toastTimer;
+function toast(msg) {
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), 1600);
+}
+function scale() {
+  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+  $stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  $stage.dataset.s = s;
+}
+function updateStatus() {
+  const hun = S.huninn == null ? '確認中' : S.huninn ? '已載入' : '未載入（改用 Noto Sans TC）';
+  $status.textContent = `主題：${PALETTES[S.palette].name}｜拉霸：${STYLES[S.style].name}｜頁面：${PAGE_NAMES[S.page]}｜Huninn：${hun}｜${S.assets ? '素材已就緒 ✓' : '素材載入中…'}`;
+  $status.hidden = !S.help;
+}
+
+// ── 頁面 ───────────────────────────────────────────────
+let $page = null;
+let cells = [];
+
+function go(page) {
+  stopAllRolls();
+  S.voidSel = null;
+  S.page = page;
+  const old = $page;
+  $page = document.createElement('div');
+  $page.className = 'page';
+  $page.innerHTML = buildPage();
+  $stage.insertBefore($page, document.getElementById('ov'));
+  if (old) { old.classList.add('out'); setTimeout(() => old.remove(), 320); }
+  afterRender();
+  updateStatus();
+}
+function buildPage() {
+  if (S.page === 'home') return homeHTML();
+  if (S.page === 'prize') return prizeHTML(S.prizes[S.cur]);
+  if (S.page === 'draw') return drawHTML(S.prizes[S.cur], false);
+  if (S.page === 'recall') return drawHTML(S.prizes[S.completed[S.recallPos]], true);
+  if (S.page === 'specimen') return specimenHTML();
+  return '';
+}
+function homeHTML() {
+  return `
+  <div class="ann-page" data-ann-bg="主頁背景｜1920×1080・JPG・< 3MB"></div>
+  <div class="logo-area" data-ann-img="Logo｜左上 240×120・透明背景 PNG・寬 ≥ 600px・沒放時不顯示"></div>
+  <div class="home-title">
+    <h1 data-ann-text="活動名稱 ← 設定!活動名稱" data-dot="--ink">${esc(EVENT.title)}</h1>
+    <p data-ann-text="副標題 ← 設定!副標題" data-dot="--ink-soft">${esc(EVENT.sub)}</p>
+  </div>
+  <div class="qr-card ${S.checkinOpen ? '' : 'off'}" data-ann-safe="QR code 安全區｜400×400（報到期間，請保持乾淨）" data-dot="--surface">
+    <div class="qr" id="qr"></div>
+    <div class="qr-count"><span>已報到</span><b id="count">${S.count}</b></div>
+  </div>`;
+}
+function prizeHTML(p) {
+  const photo = p.photo
+    ? `<div class="photo" data-ann-img="獎品照片｜800×800 區・1:1・≥ 1000px・< 2MB">
+         <div class="ph-img"><div class="ph-shape"><i></i></div><div class="ph-name">${esc(p.item)}</div><div class="ph-cap">獎品照片示意</div></div>
+       </div>`
+    : `<div class="photo none" data-ann-img="獎品照片｜800×800 區・沒有照片時顯示數量" data-dot="--primary"><span class="big">${p.qty}</span><span class="unit">名</span></div>`;
+  return `
+  <div class="ann-page" data-ann-bg="獎項頁背景｜1920×1080・JPG・< 3MB"></div>
+  ${photo}
+  <div class="prize-info">
+    <div class="rank" data-ann-text="獎項名稱（前段）← 獎項!獎項名稱" data-dot="--primary">${esc(p.rank)}</div>
+    <h2 class="item" data-ann-text="獎項名稱 ← 獎項!獎項名稱" data-dot="--ink">${esc(p.item)}</h2>
+    <div class="qty-line">
+      <span class="qty" data-ann-text="數量 ← 獎項!數量">共<b>${p.qty}</b>名</span>
+      <span class="mode-tag" data-ann-text="抽法 ← 獎項!抽法" data-dot="--secondary">${p.mode === 'all' ? '一次抽完' : '逐個抽出'}</span>
+    </div>
+  </div>`;
+}
+function drawHTML(p, recall) {
+  const n = p.slots.length;
+  const drawn = p.slots.filter(s => s.state !== 'empty').length;
+  const cls = n >= 6 ? 'c2' : 'c1' + (n === 1 ? ' solo' : '');
+  const rows = Math.ceil(n / 2);
+  const right = recall ? `<span class="done-chip">已完成</span>` : `<span class="bar-prog">${drawn} / ${n}</span>`;
+  const cellsHTML = p.slots.map((s, i) => `
+    <div class="cell" data-i="${i}">
+      <div class="badge">${i + 1}</div>
+      <div class="win"></div>
+      <span class="redo">補抽</span>
+      <span class="mark">作廢</span>
+    </div>`).join('');
+  return `
+  <div class="ann-page" data-ann-bg="抽獎頁背景｜1920×1080・JPG・< 3MB"></div>
+  <header class="bar" data-ann-safe="獎項名稱區｜1920×200" data-dot="--primary">
+    <div class="bar-title" data-ann-text="獎項名稱 ← 獎項!獎項名稱"><span class="r">${esc(p.rank)}</span>${esc(p.item)}</div>
+    ${right}
+  </header>
+  <div class="names ${cls}" style="--rows:${rows}" data-ann-safe="名字格子區｜1500×750">${cellsHTML}</div>
+  <div class="void-hint" id="voidHint" hidden></div>`;
+}
+function specimenHTML() {
+  const list = SPECIALS.concat([PEOPLE[20]]).slice(0, 8);
+  const cellsHTML = list.map((p, i) => `
+    <div class="cell won" data-spec="${i}"><div class="win">${labelHTML(PEOPLE.find(x => x.id === p.id) || p)}</div></div>`).join('');
+  return `
+  <header class="bar"><div class="bar-title"><span class="r">預覽</span>特殊名字的顯示</div><span class="done-chip">原型專用</span></header>
+  <div class="names c2" style="--rows:4">${cellsHTML}</div>
+  <div class="spec-note">同單位同名同姓・罕用字（堃、㛃、喆）・四字複姓・長單位名稱｜按 ← 或 Esc 回主頁</div>`;
+}
+
+function afterRender() {
+  cells = Array.from($page.querySelectorAll('.cell[data-i]'));
+  if (S.page === 'home') renderQR();
+  if (S.page === 'draw' || S.page === 'recall') {
+    const p = currentPrize();
+    p.slots.forEach((s, i) => paintCell(i, s));
+    if (S.page === 'draw') {
+      const empties = p.slots.map((s, i) => s.state === 'empty' ? i : -1).filter(i => i >= 0);
+      const none = empties.length === p.slots.length;
+      if (none) (p.mode === 'all' ? empties : [empties[0]]).forEach(i => startRoll(cells[i]));
+    }
+  }
+  if (S.page === 'specimen') $page.querySelectorAll('.label').forEach(fitLabel);
+  setTimeout(buildOverlay, 380);
+}
+function currentPrize() {
+  return S.page === 'recall' ? S.prizes[S.completed[S.recallPos]] : S.prizes[S.cur];
+}
+function paintCell(i, s) {
+  const cell = cells[i];
+  if (!cell) return;
+  cell.classList.remove('rolling', 'won', 'void', 'landed', 'pickable', 'selected', 'redrawn');
+  const win = cell.querySelector('.win');
+  if (s.state === 'empty') { win.innerHTML = ''; return; }
+  cell.classList.add(s.state);
+  if (s.redrawn) cell.classList.add('redrawn');
+  win.innerHTML = labelHTML(s.person);
+  fitLabel(win.querySelector('.label'));
+}
+function updateProgress() {
+  const el = $page && $page.querySelector('.bar-prog');
+  if (!el) return;
+  const p = currentPrize();
+  el.textContent = `${p.slots.filter(s => s.state !== 'empty').length} / ${p.slots.length}`;
+}
+
+// ── QR code（本機產生）────────────────────────────────
+function renderQR() {
+  const box = document.getElementById('qr');
+  if (!box) return;
+  box.innerHTML = '';
+  if (window.QRCode) {
+    const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#333333';
+    try {
+      new window.QRCode(box, { text: CHECKIN_URL, width: 256, height: 256, colorDark: ink, colorLight: '#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
+      return;
+    } catch (e) { /* 改用示意圖 */ }
+  }
+  box.innerHTML = '<div class="qr-fallback"><span>QR code</span></div>';
+}
+
+// ── 拉霸動畫 ───────────────────────────────────────────
+function stopAllRolls() {
+  cells.forEach(c => { clearInterval(c._timer); clearTimeout(c._t2); c._rolling = false; });
+}
+function startRoll(cell) {
+  if (!cell) return;
+  clearInterval(cell._timer);
+  cell._rolling = true;
+  cell.classList.remove('won', 'void', 'landed');
+  cell.classList.add('rolling');
+  const win = cell.querySelector('.win');
+  const style = STYLES[S.style].id;
+  if (REDUCED) { win.innerHTML = '<div class="label"><span class="nm">…</span></div>'; return; }
+  if (style === 'A') {
+    win.innerHTML = labelHTML(rollName());
+    cell._timer = setInterval(() => {
+      win.innerHTML = labelHTML(rollName());
+      const l = win.firstElementChild;
+      if (l) l.style.transform = `translateY(${(Math.random() * 12 - 6).toFixed(1)}px)`;
+    }, 50);
+  } else if (style === 'B') {
+    const names = Array.from({ length: 12 }, rollName);
+    const rows = names.concat(names).map(p => `<div class="row">${labelHTML(p)}</div>`).join('');
+    win.innerHTML = `<div class="reel"><div class="strip loop">${rows}</div></div>`;
+  } else {
+    win.innerHTML = `<div class="flip"><div class="face front">？</div><div class="face back"></div></div>`;
+  }
+}
+function land(cell, person, redrawn) {
+  clearInterval(cell._timer);
+  cell._rolling = false;
+  const win = cell.querySelector('.win');
+  win.innerHTML = labelHTML(person);
+  cell.classList.remove('rolling');
+  cell.classList.add('won');
+  cell.classList.toggle('redrawn', !!redrawn);
+  fitLabel(win.querySelector('.label'));
+  if (REDUCED) { win.firstElementChild.classList.add('fadein'); return; }
+  void cell.offsetWidth;
+  cell.classList.add('landed');
+}
+function stopRoll(cell, person, redrawn) {
+  return new Promise(resolve => {
+    const win = cell.querySelector('.win');
+    const style = STYLES[S.style].id;
+    const done = () => { land(cell, person, redrawn); setTimeout(resolve, REDUCED ? 60 : 340); };
+    if (REDUCED) { done(); return; }
+    if (style === 'A') {
+      clearInterval(cell._timer);
+      const delays = [];
+      let d = 50, t = 0;
+      while (t < 1900) { delays.push(d); t += d; d = Math.min(400, d * 1.16); }
+      let k = 0;
+      const step = () => {
+        if (k >= delays.length) { done(); return; }
+        win.innerHTML = labelHTML(rollName());
+        cell._t2 = setTimeout(step, delays[k++]);
+      };
+      step();
+    } else if (style === 'B') {
+      const h = cell.getBoundingClientRect().height / (parseFloat($stage.dataset.s) || 1);
+      const count = 22;
+      const rows = Array.from({ length: count }, rollName).concat([person])
+        .map(p => `<div class="row">${labelHTML(p)}</div>`).join('');
+      win.innerHTML = `<div class="reel"><div class="strip">${rows}</div></div>`;
+      const strip = win.querySelector('.strip');
+      strip.style.transform = 'translateY(0)';
+      void strip.offsetWidth;
+      strip.style.transition = 'transform 2500ms cubic-bezier(.15,.8,.3,1.06)';
+      strip.style.transform = `translateY(${-count * h}px)`;
+      let finished = false;
+      const fin = () => { if (!finished) { finished = true; done(); } };
+      strip.addEventListener('transitionend', fin, { once: true });
+      setTimeout(fin, 2700);
+    } else {
+      let flip = win.querySelector('.flip');
+      if (!flip) {
+        win.innerHTML = `<div class="flip"><div class="face front">？</div><div class="face back"></div></div>`;
+        flip = win.querySelector('.flip');
+      }
+      flip.querySelector('.back').innerHTML = labelHTML(person);
+      fitLabel(flip.querySelector('.back .label'));
+      void flip.offsetWidth;
+      flip.classList.add('on');
+      setTimeout(done, 640);
+    }
+  });
+}
+async function rollAndStop(cell, person, redrawn) {
+  if (!cell._rolling) { startRoll(cell); await sleep(REDUCED ? 0 : 450); }
+  await stopRoll(cell, person, redrawn);
+}
+
+// ── 抽獎流程 ───────────────────────────────────────────
+function nextPrizeIndex() { return S.prizes.findIndex(p => p.status !== '已完成'); }
+function isEditable(idx) { return !S.recallLocked && S.completed.length > 0 && S.completed[S.completed.length - 1] === idx; }
+function markFirstDraw(p) {
+  const idx = S.prizes.indexOf(p);
+  if (p.slots.every(s => s.state === 'empty')) {
+    if (S.completed.length && S.completed[S.completed.length - 1] !== idx) S.recallLocked = true;
+    p.status = '進行中';
+  }
+}
+function completePrize(p) {
+  const idx = S.prizes.indexOf(p);
+  p.status = '已完成';
+  if (!S.completed.includes(idx)) S.completed.push(idx);
+  S.recallLocked = false;
+}
+async function busy(fn) {
+  S.busy++;
+  try { await fn(); } finally { S.busy--; }
+}
+function notEnough() {
+  toast('抽獎池人數不夠，前台停住（正式版會在控制台跳出警告）');
+}
+async function redraw(p, i) {
+  const person = drawOne();
+  if (!person) { notEnough(); return; }
+  const slot = p.slots[i];
+  slot.history.push(slot.person);
+  slot.person = person; slot.state = 'won'; slot.redrawn = true;
+  await busy(() => rollAndStop(cells[i], person, true));
+  updateProgress();
+}
+async function drawNext(p) {
+  const voidIdx = p.slots.findIndex(s => s.state === 'void');
+  if (voidIdx >= 0) return redraw(p, voidIdx);
+  const empties = p.slots.map((s, i) => s.state === 'empty' ? i : -1).filter(i => i >= 0);
+  if (!empties.length) { completePrize(p); go('home'); return; }
+  if (S.pool.length < (p.mode === 'all' ? empties.length : 1)) { notEnough(); return; }
+  markFirstDraw(p);
+  if (p.mode === 'all') {
+    // 按下的瞬間決定全部結果，之後的動畫只是呈現
+    const winners = empties.map(() => drawOne());
+    empties.forEach((i, k) => { p.slots[i].person = winners[k]; p.slots[i].state = 'won'; });
+    await busy(async () => {
+      empties.forEach(i => { if (!cells[i]._rolling) startRoll(cells[i]); });
+      await Promise.all(empties.map((i, k) => sleep(k * 500).then(() => stopRoll(cells[i], winners[k], false).then(updateProgress))));
+    });
+  } else {
+    const i = empties[0];
+    const person = drawOne();
+    p.slots[i].person = person; p.slots[i].state = 'won';
+    await busy(() => rollAndStop(cells[i], person, false));
+    updateProgress();
+  }
+}
+
+function next() {
+  if (S.page === 'home') {
+    const i = nextPrizeIndex();
+    if (i < 0) { toast('所有獎項都已抽完'); return; }
+    S.cur = i; go('prize');
+  } else if (S.page === 'prize') {
+    go('draw');
+  } else if (S.page === 'draw') {
+    drawNext(S.prizes[S.cur]);
+  } else if (S.page === 'recall') {
+    const idx = S.completed[S.recallPos];
+    const p = S.prizes[idx];
+    const v = p.slots.findIndex(s => s.state === 'void');
+    if (isEditable(idx) && v >= 0) { redraw(p, v); return; }
+    if (S.recallPos < S.completed.length - 1) { S.recallPos++; go('recall'); } else go('home');
+  } else if (S.page === 'specimen') {
+    go('home');
+  }
+}
+function prev() {
+  if (S.page === 'home') {
+    if (!S.completed.length) return;
+    S.recallPos = S.completed.length - 1; go('recall');
+  } else if (S.page === 'prize') {
+    go('home');
+  } else if (S.page === 'draw') {
+    if (S.prizes[S.cur].slots.every(s => s.state === 'empty')) go('prize');
+  } else if (S.page === 'recall') {
+    if (S.recallPos > 0) { S.recallPos--; go('recall'); }
+  } else if (S.page === 'specimen') {
+    go('home');
+  }
+}
+
+// ── 作廢 ───────────────────────────────────────────────
+function canVoidHere() {
+  if (S.page === 'draw') return true;
+  if (S.page === 'recall') return isEditable(S.completed[S.recallPos]);
+  return false;
+}
+function pickableSlots() {
+  return currentPrize().slots.map((s, i) => (s.state === 'won' || s.state === 'void') ? i : -1).filter(i => i >= 0);
+}
+function startVoid() {
+  if (!canVoidHere()) {
+    if (S.page === 'recall') toast('這個獎項已經不能作廢（下一個獎項已開抽）');
+    return;
+  }
+  const pick = pickableSlots();
+  if (!pick.length) return;
+  S.voidSel = { slot: null };
+  pick.forEach(i => cells[i].classList.add('pickable'));
+  setHint('選擇要作廢的格子：按數字鍵（0＝第 10 格），Esc 取消');
+  if (pick.length === 1) selectSlot(pick[0]);
+}
+function selectSlot(i) {
+  if (!S.voidSel || !pickableSlots().includes(i)) return;
+  cells.forEach(c => c.classList.remove('selected'));
+  cells[i].classList.add('selected');
+  S.voidSel.slot = i;
+  const s = currentPrize().slots[i];
+  const who = `${s.person.unit}_${s.person.name}`;
+  setHint(s.state === 'won'
+    ? `作廢第 ${i + 1} 格：${who}？Enter 確認／Esc 取消`
+    : `取消作廢第 ${i + 1} 格：${who}，恢復為得獎人？Enter 確認／Esc 取消`);
+}
+function confirmVoid() {
+  if (!S.voidSel || S.voidSel.slot == null) return;
+  const i = S.voidSel.slot;
+  const s = currentPrize().slots[i];
+  s.state = s.state === 'won' ? 'void' : 'won';
+  endVoid();
+  paintCell(i, s);
+}
+function endVoid() {
+  S.voidSel = null;
+  cells.forEach(c => c.classList.remove('pickable', 'selected'));
+  setHint('');
+}
+function setHint(t) {
+  const h = document.getElementById('voidHint');
+  if (!h) return;
+  h.textContent = t; h.hidden = !t;
+}
+
+// ── 客製化標示圖層 ─────────────────────────────────────
+const TOKENS = ['--bg', '--surface', '--primary', '--secondary', '--ink', '--ink-soft'];
+function buildOverlay() {
+  let ov = document.getElementById('ov');
+  ov.innerHTML = '';
+  if (!S.overlay || !$page) return;
+  const s = parseFloat($stage.dataset.s) || 1;
+  const sr = $stage.getBoundingClientRect();
+  const box = el => {
+    const r = el.getBoundingClientRect();
+    return { x: (r.left - sr.left) / s, y: (r.top - sr.top) / s, w: r.width / s, h: r.height / s };
+  };
+  const add = (cls, b, text, pos) => {
+    const d = document.createElement('div');
+    d.className = 'ann ' + cls;
+    Object.assign(d.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px' });
+    if (text) {
+      const t = document.createElement('span');
+      t.className = 'tg' + (pos ? ' ' + pos : (b.y < 46 ? ' in' : ''));
+      t.textContent = text;
+      d.appendChild(t);
+    }
+    ov.appendChild(d);
+  };
+  const bg = $page.querySelector('[data-ann-bg]');
+  if (bg) {
+    const d = document.createElement('div');
+    d.className = 'ann frame';
+    const t = document.createElement('span');
+    t.className = 'tg in'; t.style.top = 'auto'; t.style.bottom = '10px'; t.style.left = '10px';
+    t.textContent = '背景圖：' + bg.dataset.annBg;
+    d.appendChild(t);
+    ov.appendChild(d);
+  }
+  $page.querySelectorAll('[data-ann-img]').forEach(el => add('img', box(el), el.dataset.annImg));
+  $page.querySelectorAll('[data-ann-safe]').forEach(el => {
+    const b = box(el);
+    add('safe', b, el.dataset.annSafe, el.classList.contains('names') ? 'in' : (el.classList.contains('bar') ? 'below' : ''));
+  });
+  $page.querySelectorAll('[data-ann-text]').forEach(el => add('text', box(el), el.dataset.annText));
+  const dotAt = (x, y, token) => {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.style.left = Math.min(x, 1700) + 'px';
+    d.style.top = y + 'px';
+    d.innerHTML = `<i style="background:var(${token})"></i><span>${token}</span>`;
+    ov.appendChild(d);
+  };
+  $page.querySelectorAll('[data-dot]').forEach(el => {
+    const b = box(el);
+    dotAt(b.x + b.w + 10, b.y + 6, el.dataset.dot);
+  });
+  // 抽獎頁：格子狀態的色彩
+  const sample = (sel, token) => {
+    const el = $page.querySelector(sel);
+    if (el) { const b = box(el); dotAt(b.x + b.w - 190, b.y + 8, token); }
+  };
+  sample('.cell.won', '--surface');
+  sample('.cell.rolling', '--secondary');
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  const cs = getComputedStyle(document.documentElement);
+  legend.innerHTML = `
+    <h3>客製化區域說明</h3>
+    <div class="li"><span class="sw img"></span>可以放圖片的區域</div>
+    <div class="li"><span class="sw safe"></span>文字安全區（背景圖這裡請保持乾淨）</div>
+    <div class="li"><span class="sw text"></span>可以改的文字 ← 對應的 Sheet 欄位</div>
+    <div class="li"><span class="sw" style="display:grid;place-items:center"><i style="width:22px;height:22px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ann)"></i></span>可以改的顏色 token</div>
+    <div>目前配色：${PALETTES[S.palette].name}</div>
+    <div class="tokens">${TOKENS.map(t => `<div><i style="background:var(${t})"></i>${t} ${cs.getPropertyValue(t).trim()}</div>`).join('')}</div>`;
+  ov.appendChild(legend);
+}
+
+// ── 原型專用切換 ───────────────────────────────────────
+function setPalette(i) {
+  S.palette = i;
+  document.documentElement.dataset.palette = PALETTES[i].id;
+  if (S.page === 'home') renderQR();
+  toast('配色：' + PALETTES[i].name);
+  buildOverlay(); updateStatus();
+}
+function setStyle(i) {
+  S.style = i;
+  cells.forEach(c => { if (c._rolling) startRoll(c); });
+  toast('拉霸樣式：' + STYLES[i].name);
+  updateStatus();
+}
+function toggleCheckin() {
+  S.checkinOpen = !S.checkinOpen;
+  const card = $page && $page.querySelector('.qr-card');
+  if (card) card.classList.toggle('off', !S.checkinOpen);
+  toast(S.checkinOpen ? '主頁：報到中' : '主頁：已截止');
+}
+function toggleHelp() { S.help = !S.help; $help.hidden = !S.help; updateStatus(); }
+function toggleBlack() { S.black = !S.black; $black.hidden = !S.black; }
+function toggleGuide() { S.overlay = !S.overlay; buildOverlay(); }
+function fullscreen() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => toast('這個視窗不允許全螢幕'));
+  } catch (e) { toast('這個視窗不允許全螢幕'); }
+}
+function doReset() { reset(); go('home'); toast('已重設所有假資料'); }
+
+function act(a) {
+  if (a === 'help') return toggleHelp();
+  if (a === 'black') return toggleBlack();
+  if (S.black) return;
+  if (S.busy) return;
+  switch (a) {
+    case 'next': if (!S.voidSel) next(); break;
+    case 'prev': if (!S.voidSel) prev(); break;
+    case 'void': if (!S.voidSel) startVoid(); break;
+    case 'full': fullscreen(); break;
+    case 'theme': setPalette((S.palette + 1) % PALETTES.length); break;
+    case 'style': setStyle((S.style + 1) % STYLES.length); break;
+    case 'guide': toggleGuide(); break;
+    case 'checkin': toggleCheckin(); break;
+    case 'reset': doReset(); break;
+    case 'specimen': go('specimen'); break;
+  }
+}
+
+// ── 輸入 ───────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  const k = e.key;
+  // 抽獎頁攔截重新整理
+  if ((k === 'F5' || ((e.ctrlKey || e.metaKey) && (k === 'r' || k === 'R'))) && (S.page === 'draw' || S.page === 'recall')) {
+    e.preventDefault(); toast('抽獎頁不能重新整理'); return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === '?' || k === '/') { e.preventDefault(); return act('help'); }
+  if (k === 'b' || k === 'B') return act('black');
+  if (S.black || S.busy) { if ([' ', 'ArrowRight', 'ArrowLeft', 'PageDown', 'PageUp'].includes(k)) e.preventDefault(); return; }
+  if (S.voidSel) {
+    e.preventDefault();
+    if (/^[0-9]$/.test(k)) selectSlot(k === '0' ? 9 : Number(k) - 1);
+    else if (k === 'Enter') confirmVoid();
+    else if (k === 'Escape') endVoid();
+    return;
+  }
+  if (k === 'ArrowRight' || k === ' ' || k === 'PageDown') { e.preventDefault(); act('next'); }
+  else if (k === 'ArrowLeft' || k === 'PageUp') { e.preventDefault(); act('prev'); }
+  else if (k === 'Escape' && S.page === 'specimen') go('home');
+  else if (k === 'x' || k === 'X') act('void');
+  else if (k === 'f' || k === 'F') act('full');
+  else if (k === 't' || k === 'T') act('theme');
+  else if (k === 's' || k === 'S') act('style');
+  else if (k === 'g' || k === 'G') act('guide');
+  else if (k === 'c' || k === 'C') act('checkin');
+  else if (k === 'r' || k === 'R') act('reset');
+});
+// 視窗還沒取得焦點時的第一下點擊只用來取得焦點，不換頁
+let skipClick = false;
+$stage.addEventListener('pointerdown', () => { skipClick = !document.hasFocus(); });
+$stage.addEventListener('click', e => {
+  if (skipClick) { skipClick = false; focusCheck(); return; }
+  if (S.busy || S.black) return;
+  if (S.voidSel) {
+    const cell = e.target.closest('.cell[data-i]');
+    if (!cell) { endVoid(); return; }
+    const i = Number(cell.dataset.i);
+    if (S.voidSel.slot === i) confirmVoid(); else selectSlot(i);
+    return;
+  }
+  act('next');
+});
+$black.addEventListener('click', () => act('black'));
+document.getElementById('helpBtn').addEventListener('click', () => act('help'));
+$help.addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]');
+  if (b) act(b.dataset.act);
+});
+
+// 視窗失去鍵盤焦點時，角落顯示小提示點
+function focusCheck() { $focusDot.hidden = document.hasFocus(); }
+window.addEventListener('focus', focusCheck);
+window.addEventListener('blur', focusCheck);
+
+// 螢幕常亮（不支援就略過）
+async function wake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch (e) { /* 略過 */ }
+}
+document.addEventListener('visibilitychange', wake);
+
+// 報到人數假裝在增加
+setInterval(() => {
+  if (!S.checkinOpen || S.count >= 600) return;
+  S.count = Math.min(600, S.count + Math.floor(Math.random() * 3));
+  const el = document.getElementById('count');
+  if (el) el.textContent = S.count;
+}, 2200);
+
+// ── 啟動 ───────────────────────────────────────────────
+window.addEventListener('resize', () => { scale(); buildOverlay(); });
+const ovEl = document.createElement('div');
+ovEl.id = 'ov';
+$stage.appendChild(ovEl);
+scale();
+reset();
+go('home');
+focusCheck();
+wake();
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('72px "Huninn"', '粉圓').then(f => { S.huninn = f.length > 0; updateStatus(); }).catch(() => { S.huninn = false; updateStatus(); });
+  document.fonts.ready.then(() => {
+    S.assets = true; updateStatus();
+    if ($page) $page.querySelectorAll('.label').forEach(fitLabel);
+    buildOverlay();
+  });
+} else { S.assets = true; }
+})();
+</script>
+
+</body></html>
