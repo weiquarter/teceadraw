@@ -124,7 +124,10 @@ body {
   padding: 0 120px; background: var(--primary);
   display: flex; align-items: center; justify-content: space-between; gap: 40px;
 }
-.bar-title { flex: 1; min-width: 0; font: 400 56px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.bar-event { font: 400 30px/1.2 var(--f-display); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-logo { flex: none; height: 140px; max-width: 320px; object-fit: contain; }
+.bar-title { min-width: 0; font: 400 56px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-title.two { white-space: normal; word-break: keep-all; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .bar-title .r { margin-right: 28px; }
 .bar-prog { font: 700 56px var(--f-num); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -203,7 +206,14 @@ body {
   font: 500 24px var(--f-body); color: var(--ink-soft); opacity: 0.85;
 }
 
-/* 背景圖（素材資料夾的 主頁背景／獎項頁背景／抽獎頁背景） */
+/* 獎項頁左上角：Logo 與活動名稱（設定分頁可開關） */
+.corner { position: absolute; left: 150px; top: 24px; height: 92px; display: flex; align-items: center; gap: 24px; }
+.corner img { height: 92px; max-width: 360px; object-fit: contain; }
+.corner span { font: 400 40px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; }
+/* 獎項說明：在獎項名稱下方，字小一號 */
+.desc { margin: -6px 0 0; font: 500 48px/1.35 var(--f-body); color: var(--ink); white-space: pre-line; word-break: keep-all; text-wrap: balance; max-width: 100%; }
+
+/* 背景圖（素材資料夾裡、設定分頁指定檔名的 主頁背景／獎項頁背景／抽獎頁背景） */
 .page.has-bg { background-size: cover; background-position: center; }
 .logo-area img { width: 100%; height: 100%; object-fit: contain; object-position: left center; }
 .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }

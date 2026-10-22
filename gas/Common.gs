@@ -2,7 +2,7 @@
 
 const API_VERSION = 1;
 // 每次推送新程式就加一，用來判斷部署是不是最新版本
-const BUILD = 12;
+const BUILD = 13;
 
 const SHEET = {
   CONSOLE: '控制台',
@@ -38,7 +38,10 @@ const NEXT_STEP = {
 const PEOPLE_HEADERS = ['縣市', '部門', '單位', '工號', '姓名', '可否摸彩', '登錄狀態', '報到時間', '中獎獎項'];
 const PC = { UNIT: 3, ID: 4, NAME: 5, ELIGIBLE: 6, REG: 7, TIME: 8, PRIZE: 9 };
 
-const PRIZE_HEADERS = ['排序', '獎項名稱', '數量', '照片檔名', '抽法', '狀態'];
+const PRIZE_HEADERS = ['排序', '獎項名稱', '獎項說明', '數量', '照片檔名', '抽法', '狀態'];
+const PZ = { SORT: 1, NAME: 2, DESC: 3, QTY: 4, PHOTO: 5, MODE: 6, STATUS: 7 };
+// 設定分頁裡的圖片檔名欄位 → 前台用途
+const IMAGE_SETTINGS = { home: '圖片_主頁背景', prize: '圖片_獎項頁背景', draw: '圖片_抽獎頁背景', logo: '圖片_Logo' };
 const WINNER_HEADERS = ['時間', '獎項', '名額序號', '單位', '工號', '姓名', '狀態', '備註'];
 const LOG_HEADERS = ['時間', 'API／動作', '結果', '耗時（毫秒）', '對象', '前台代號', '錯誤訊息'];
 
@@ -126,6 +129,8 @@ function buildConfig_() {
       },
       font: str('字型') || 'Huninn',
       reel: str('拉霸樣式').charAt(0) || 'A',
+      showTitle: str('前台顯示活動名稱') !== '否',
+      logoAll: str('獎項頁與抽獎頁顯示 Logo') === '是',
     },
     texts: texts,
   };

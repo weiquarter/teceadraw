@@ -214,25 +214,37 @@ function homeHTML() {
   const ended = U.sysState === '已結束';
   return `
   <div class="logo-area">${ASSET.logo ? `<img src="${ASSET.logo}" alt="">` : ''}</div>
-  <div class="home-title">
-    <h1>${esc(cfg.title || '')}</h1>
+  ${cfg.theme.showTitle !== false && (cfg.title || cfg.subtitle) ? `<div class="home-title">
+    ${cfg.title ? `<h1>${esc(cfg.title)}</h1>` : ''}
     ${cfg.subtitle ? `<p>${esc(cfg.subtitle)}</p>` : ''}
-  </div>
+  </div>` : ''}
   ${ended ? '<div class="home-note">活動已結束</div>' : ''}
   <div class="qr-card ${open ? '' : 'off'}">
     <div class="qr"></div>
     <div class="qr-count"><span>已報到</span><b>${U.checkins}</b></div>
   </div>`;
 }
+// 獎項頁與抽獎頁左上角：Logo（設定可開關）＋活動名稱（設定可開關）
+function cornerParts() {
+  return {
+    logo: cfg.theme.logoAll && ASSET.logo ? ASSET.logo : '',
+    title: cfg.theme.showTitle !== false && cfg.title ? cfg.title : '',
+  };
+}
 function prizeHTML(p) {
   const url = p.photo && ASSET.photo[p.photo];
   const photo = url
     ? `<div class="photo"><img src="${url}" alt=""></div>`
     : `<div class="photo none"><span class="big">${p.qty}</span><span class="unit">名</span></div>`;
+  const c = cornerParts();
+  const corner = c.logo || c.title
+    ? `<div class="corner">${c.logo ? `<img src="${c.logo}" alt="">` : ''}${c.title ? `<span>${esc(c.title)}</span>` : ''}</div>` : '';
   return `
+  ${corner}
   ${photo}
   <div class="prize-info">
     <h2 class="item">${esc(p.name)}</h2>
+    ${p.desc ? `<p class="desc">${esc(p.desc)}</p>` : ''}
     <div class="qty-line">
       <span class="qty">共<b>${p.qty}</b>名</span>
       <span class="mode-tag">${esc(p.mode)}</span>
@@ -253,9 +265,14 @@ function drawHTML(idx, recall) {
       <span class="redo">補抽</span>
       <span class="mark">作廢</span>
     </div>`).join('');
+  const c = cornerParts();
   return `
   <header class="bar">
-    <div class="bar-title">${esc(p.name.replace(/\s*\n\s*/g, ' '))}</div>
+    ${c.logo ? `<img class="bar-logo" src="${c.logo}" alt="">` : ''}
+    <div class="bar-main">
+      ${c.title ? `<div class="bar-event">${esc(c.title)}</div>` : ''}
+      <div class="bar-title">${esc(p.name.replace(/\s*\n\s*/g, ' '))}</div>
+    </div>
     ${right}
   </header>
   <div class="names ${cls}" style="--rows:${Math.ceil(n / 2)}">${cellsHTML}</div>
@@ -280,11 +297,16 @@ function fitLabel(label) {
   while (label.scrollWidth > label.clientWidth && nsz > ns * 0.55) { nsz -= 2; label.style.setProperty('--nsz', nsz + 'px'); }
 }
 
-// 獎項頁名稱：先只在空格與換行處斷行（字級不低於 72px）；放不下就允許字中斷行，從大字重新縮
+// 獎項頁名稱與說明：先只在空格與換行處斷行，放不下先縮字，再放不下才允許字中斷行，從大字重新縮
 function fitPrizeTitle() {
-  const h = $page && $page.querySelector('.item');
-  if (!h) return;
-  const fits = () => h.scrollWidth <= h.clientWidth + 1 && h.offsetHeight <= 600;
+  if (!$page) return;
+  const h = $page.querySelector('.item');
+  const d = $page.querySelector('.desc');
+  if (h) fitBlock(h, 96, 72, 40, d ? 380 : 600);
+  if (d) fitBlock(d, 48, 40, 28, 260);
+}
+function fitBlock(h, max, keepMin, min, maxH) {
+  const fits = () => h.scrollWidth <= h.clientWidth + 1 && h.offsetHeight <= maxH;
   const shrink = (from, min) => {
     let size = from;
     h.style.fontSize = size + 'px';
@@ -292,9 +314,9 @@ function fitPrizeTitle() {
     return fits();
   };
   h.style.wordBreak = '';
-  if (shrink(96, 72)) return;
+  if (shrink(max, keepMin)) return;
   h.style.wordBreak = 'normal';
-  shrink(96, 40);
+  shrink(max, min);
 }
 // 抽獎頁標題列：先縮字維持一行（最小 40px）；放不下改成兩行（最小 30px），必要時字中斷行
 function fitBarTitle() {

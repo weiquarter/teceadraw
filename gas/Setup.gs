@@ -19,8 +19,50 @@ function settingRows_() {
     ['提示_系統準備中', '系統準備中，請稍後再試', ''],
     ['提示_活動已結束', '活動已結束', ''],
     ['提示_請截圖', '請截圖保存', ''],
+    ['前台顯示活動名稱', '是', '是：主頁大標題，獎項頁與抽獎頁左上角小標題。否：都不顯示（標題已經畫在背景圖裡時選否）。報到頁不受影響'],
+    ['獎項頁與抽獎頁顯示 Logo', '否', '主頁有 Logo 檔案就一定顯示；這裡決定獎項頁與抽獎頁左上角要不要也放'],
+    ['素材資料夾', '', '所有圖片（背景、Logo、獎品照片）都放這個資料夾。按「活動前 › 初始化」後這裡會出現連結'],
+    ['圖片_主頁背景', '主頁背景', '素材資料夾裡的檔名，不用打副檔名、不分大小寫（例如檔案是「主頁背景.jpg」就填「主頁背景」）。1920×1080，JPG 或 PNG，小於 3MB；右下 400×400 要留給報到 QR code。空白＝純色背景'],
+    ['圖片_獎項頁背景', '獎項頁背景', '同上。1920×1080；左邊 800×800 會放獎品照片，右邊放獎項名稱與說明，左上角約 1920×130 放 Logo 與活動名稱'],
+    ['圖片_抽獎頁背景', '抽獎頁背景', '同上。1920×1080；上方 1920×200 是獎項名稱色條（會蓋住背景），中間 1500×750 放名字格子'],
+    ['圖片_Logo', 'logo', '同上。透明背景 PNG，寬 600px 以上。空白＝不顯示 Logo'],
     ['前端網址', DEFAULT_PAGES_BASE, '進階：fork 自架時才需要改'],
   ];
+}
+
+// 設定分頁缺少的項目補在最後（舊的 Sheet 升級用），並套上下拉選單
+function ensureSettingRows_() {
+  const sh = sheet_(SHEET.SETTINGS);
+  const have = Object.keys(readKeyValue_(SHEET.SETTINGS));
+  const missing = settingRows_().filter(r => have.indexOf(r[0]) < 0);
+  if (missing.length) sh.getRange(sh.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
+  const keys = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(r => String(r[0]).trim());
+  const rule = (key, values) => { const i = keys.indexOf(key); if (i >= 0) sh.getRange(i + 1, 2).setDataValidation(listRule_(values)); };
+  rule('配色主題', Object.keys(PALETTE_IDS));
+  rule('拉霸樣式', ['A 跳字', 'B 直向轉輪', 'C 翻牌']);
+  rule('前台顯示活動名稱', ['是', '否']);
+  rule('獎項頁與抽獎頁顯示 Logo', ['是', '否']);
+  sh.getRange('C:C').setWrap(true);
+  const folderId = sysGet_('素材資料夾ID');
+  if (folderId) setFolderLink_(folderId);
+  return missing.map(r => r[0]);
+}
+
+function setFolderLink_(folderId) {
+  const sh = sheet_(SHEET.SETTINGS);
+  const keys = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(r => String(r[0]).trim());
+  const i = keys.indexOf('素材資料夾');
+  if (i >= 0) sh.getRange(i + 1, 2).setFormula('=HYPERLINK("https://drive.google.com/drive/folders/' + folderId + '","開啟素材資料夾")');
+}
+
+// 舊版獎項分頁沒有「獎項說明」欄：插在獎項名稱後面，原本的資料與下拉選單一起右移
+function migratePrizeColumns_() {
+  const sh = sheet_(SHEET.PRIZES);
+  if (String(sh.getRange(1, PZ.DESC).getValue()).trim() === '獎項說明') return false;
+  sh.insertColumnAfter(PZ.NAME);
+  sh.getRange(1, PZ.DESC).setValue('獎項說明');
+  sh.setColumnWidth(PZ.DESC, 300);
+  return true;
 }
 
 // 在 Apps Script 編輯器手動執行，建立範本 Sheet 的所有分頁；已存在的分頁不會動，控制台每次都重建
@@ -55,11 +97,12 @@ function setupTemplate() {
     [80, 100, 200, 110, 110, 90, 100, 170, 160].forEach((w, i) => sh.setColumnWidth(i + 1, w));
   });
   make(SHEET.PRIZES, PRIZE_HEADERS, sh => {
-    sh.getRange('C2:C').setDataValidation(SpreadsheetApp.newDataValidation()
+    sh.getRange('D2:D').setDataValidation(SpreadsheetApp.newDataValidation()
       .requireNumberBetween(1, 10).setAllowInvalid(false).setHelpText('數量 1～10，超過請拆成兩個獎項').build());
-    sh.getRange('E2:E').setDataValidation(listRule_(['一次抽完', '逐個抽出']));
-    [60, 260, 70, 180, 110, 90].forEach((w, i) => sh.setColumnWidth(i + 1, w));
+    sh.getRange('F2:F').setDataValidation(listRule_(['一次抽完', '逐個抽出']));
+    [60, 240, 300, 70, 180, 110, 90].forEach((w, i) => sh.setColumnWidth(i + 1, w));
   });
+  if (migratePrizeColumns_()) created.push('獎項分頁（加上獎項說明欄）');
   make(SHEET.WINNERS, WINNER_HEADERS, sh => {
     sh.getRange('E2:E').setNumberFormat('@');
     sh.getRange('A2:A').setNumberFormat('yyyy/mm/dd hh:mm:ss');
@@ -71,10 +114,10 @@ function setupTemplate() {
   make(SHEET.SETTINGS, ['項目', '值', '說明'], sh => {
     const rows = settingRows_();
     sh.getRange(2, 1, rows.length, 3).setValues(rows);
-    sh.getRange('B4').setDataValidation(listRule_(Object.keys(PALETTE_IDS)));
-    sh.getRange('B5').setDataValidation(listRule_(['A 跳字', 'B 直向轉輪', 'C 翻牌']));
-    [140, 320, 320].forEach((w, i) => sh.setColumnWidth(i + 1, w));
+    [160, 320, 520].forEach((w, i) => sh.setColumnWidth(i + 1, w));
   });
+  const addedSettings = ensureSettingRows_();
+  if (addedSettings.length) created.push('設定分頁（新增：' + addedSettings.join('、') + '）');
   make(SHEET.LOG, LOG_HEADERS, sh => {
     sh.getRange('A2:A').setNumberFormat('yyyy/mm/dd hh:mm:ss');
     sh.getRange('E2:E').setNumberFormat('@');
@@ -129,7 +172,7 @@ function buildConsole_(sh) {
     ['獎項', '=IF(' + kv(SHEET.SYSTEM, '獎項鎖定後變更', '') + '="是","⚠️ 獎項在鎖定後被修改，請解除鎖定後重新鎖定","")'],
     ['', ''],
     ['下一個要抽的獎項', ''],
-    ['', '=IF(B17<>"","↑ 前台回主頁時生效；清空＝照排序","空白＝照排序：" & IFERROR(INDEX(SORT(FILTER({' + prize + 'A2:A,' + prize + 'B2:B},' + prize + 'B2:B<>"",' + prize + 'F2:F<>"已完成"),1,TRUE),1,2),"（沒有待抽的獎項）"))'],
+    ['', '=IF(B17<>"","↑ 前台回主頁時生效；清空＝照排序","空白＝照排序：" & IFERROR(INDEX(SORT(FILTER({' + prize + 'A2:A,' + prize + 'B2:B},' + prize + 'B2:B<>"",' + prize + 'G2:G<>"已完成"),1,TRUE),1,2),"（沒有待抽的獎項）"))'],
     ['', ''],
     ['前台監看', ''],
     ['前台代號', stage('前台代號')],
@@ -225,6 +268,7 @@ function ensureFolders_() {
       folder = it.hasNext() ? it.next() : parent.createFolder(name);
       sysSet_(key, folder.getId());
     }
+    if (name === '素材') setFolderLink_(folder.getId());
     out[name] = folder.getUrl();
   });
   return out;
@@ -324,7 +368,7 @@ function clearDataConfirmed(text, backup) {
   lock.waitLock(30000);
   try {
     clearBelowHeader_(SHEET.PEOPLE, PC.TIME, 2);
-    clearBelowHeader_(SHEET.PRIZES, 6, 1);
+    clearBelowHeader_(SHEET.PRIZES, PZ.STATUS, 1);
     clearBelowHeader_(SHEET.WINNERS, 1, WINNER_HEADERS.length);
     [SHEET.STAGE, SHEET.SNAPSHOT, SHEET.OPLOG].forEach(n => sheet_(n).clearContents());
     discardPendingCheckins_();
@@ -471,15 +515,20 @@ function runChecks_(opts) {
 
     const folderId = sysGet_('素材資料夾ID');
     const withPhoto = prizes.filter(p => p.photo);
-    if (withPhoto.length && !folderId) add('提醒', '還沒初始化，無法檢查獎品照片', '請先執行「活動前 › 初始化」');
-    if (withPhoto.length && folderId) {
+    const settings = readKeyValue_(SHEET.SETTINGS);
+    const images = Object.keys(IMAGE_SETTINGS).map(k => [IMAGE_SETTINGS[k].replace('圖片_', ''), String(settings[IMAGE_SETTINGS[k]] || '').trim()]).filter(x => x[1]);
+    if ((withPhoto.length || images.length) && !folderId) add('提醒', '還沒初始化，無法檢查圖片', '請先執行「活動前 › 初始化」');
+    if ((withPhoto.length || images.length) && folderId) {
       const files = [];
       const it = DriveApp.getFolderById(folderId).getFiles();
       while (it.hasNext()) files.push(it.next().getName());
       const have = {};
       files.forEach(f => { have[photoKey_(f)] = true; });
+      const actual = '素材資料夾裡實際的檔名：' + (files.length ? list(files, 30) : '（資料夾是空的）');
       const missing = withPhoto.filter(p => !have[photoKey_(p.photo)]).map(p => p.name + '：' + p.photo);
-      if (missing.length) add('提醒', '找不到獎品照片（會改用只有文字的版面）', list(missing) + '。素材資料夾裡實際的檔名：' + (files.length ? list(files, 30) : '（資料夾是空的）'));
+      if (missing.length) add('提醒', '找不到獎品照片（會改用只有文字的版面）', list(missing) + '。' + actual);
+      const missingImg = images.filter(x => !have[photoKey_(x[1])]).map(x => x[0] + '：' + x[1]);
+      if (missingImg.length) add('提醒', '找不到設定分頁指定的圖片（會改用純色背景或不顯示）', list(missingImg) + '。' + actual);
     }
   }
   return issues;
@@ -516,13 +565,14 @@ function readPrizes_() {
     .map((r, i) => ({
       row: i + 2,
       sort: r[0] === '' ? '' : (typeof r[0] === 'number' ? r[0] : (isNaN(Number(r[0])) ? r[0] : Number(r[0]))),
-      name: String(r[1]).trim(),
-      qty: Number(r[2]),
-      photo: String(r[3]).trim(),
-      mode: String(r[4]).trim(),
-      status: String(r[5]).trim(),
+      name: String(r[PZ.NAME - 1]).trim(),
+      desc: String(r[PZ.DESC - 1]).trim(),
+      qty: Number(r[PZ.QTY - 1]),
+      photo: String(r[PZ.PHOTO - 1]).trim(),
+      mode: String(r[PZ.MODE - 1]).trim(),
+      status: String(r[PZ.STATUS - 1]).trim(),
     }))
-    .filter(p => p.sort !== '' || p.name || p.photo || p.mode);
+    .filter(p => p.sort !== '' || p.name || p.desc || p.photo || p.mode);
 }
 
 // 抽獎池：已報到、可否摸彩＝是、不是移除；同單位同名同姓加工號後四碼
@@ -543,7 +593,7 @@ function poolHash_(pool) {
 // 依排序計算，跟獎項列在分頁上的先後無關
 function prizeHash_(prizes) {
   const sorted = prizes.slice().sort((a, b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0));
-  return hash_(JSON.stringify(sorted.map(p => [p.sort, p.name, p.qty, photoKey_(p.photo), p.mode])), 4);
+  return hash_(JSON.stringify(sorted.map(p => [p.sort, p.name, p.desc, p.qty, photoKey_(p.photo), p.mode])), 4);
 }
 
 function writeCheckResults_(title, issues) {

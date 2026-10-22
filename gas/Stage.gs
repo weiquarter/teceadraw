@@ -6,7 +6,6 @@ const ST = {
 };
 const ST_KEYS = ['作用中前台代號', '前台代號', '目前獎項', '目前頁面', '待同步筆數', '最後回報時間', '指令_回主頁', '被拒絕的補寫', '最後被拒絕時間'];
 const OPLOG_HEADERS = ['操作 ID', '內容', '時間', '前台代號', '結果'];
-const BACKGROUND_KEYS = { home: '主頁背景', prize: '獎項頁背景', draw: '抽獎頁背景', logo: 'logo' };
 
 function stageAuth_(p) {
   const key = PropertiesService.getScriptProperties().getProperty('STAGE_KEY');
@@ -91,19 +90,23 @@ function apiStageLoad_(p) {
     poolHash: String(sys['名單檢查碼'] || ''),
     prizeHash: String(sys['獎項檢查碼'] || ''),
     prizeChanged: sys['獎項鎖定後變更'] === '是' || prizeHash_(prizes) !== String(sys['獎項檢查碼'] || ''),
-    prizes: prizes.map(x => ({ sort: x.sort, name: x.name, qty: x.qty, mode: x.mode, photo: photoKey_(x.photo) })),
+    prizes: prizes.map(x => ({ sort: x.sort, name: x.name, desc: x.desc, qty: x.qty, mode: x.mode, photo: photoKey_(x.photo) })),
     pool: pool,
     ops: appliedOps_().map(o => o.op),
     assets: stageAssets_(prizes),
   };
 }
 
-// 素材資料夾裡用得到的檔案：三張背景、Logo、各獎項照片
+// 素材資料夾裡用得到的檔案：設定分頁指定的三張背景與 Logo、各獎項照片
 function stageAssets_(prizes) {
   const folderId = sysGet_('素材資料夾ID');
   if (!folderId) return [];
   const wanted = {};
-  Object.keys(BACKGROUND_KEYS).forEach(k => { wanted[photoKey_(BACKGROUND_KEYS[k])] = k; });
+  const settings = readKeyValue_(SHEET.SETTINGS);
+  Object.keys(IMAGE_SETTINGS).forEach(k => {
+    const name = photoKey_(settings[IMAGE_SETTINGS[k]]);
+    if (name) wanted[name] = k;
+  });
   prizes.forEach(x => { if (x.photo) wanted[photoKey_(x.photo)] = 'photo:' + photoKey_(x.photo); });
   const out = [];
   const it = DriveApp.getFolderById(folderId).getFiles();
@@ -233,7 +236,7 @@ function applyOps_(ops, prizes, code, state) {
       winners.appendRow([new Date(Number(o.at) || now.getTime()), prize.name, seq, who[1], String(who[0]), who[2], '有效', o.r ? '補抽' : '']);
       setPrizeOfPerson(String(o.w), prize.name);
       if (prize.status !== '進行中' && prize.status !== '已完成') {
-        prizeSheet.getRange(prize.row, 6).setValue('進行中');
+        prizeSheet.getRange(prize.row, PZ.STATUS).setValue('進行中');
         prize.status = '進行中';
       }
       firstDraw = true;
@@ -242,7 +245,7 @@ function applyOps_(ops, prizes, code, state) {
       if (row > 0) winners.getRange(row, 7).setValue(o.t === 'void' ? '作廢' : '有效');
       setPrizeOfPerson(String(o.w), o.t === 'void' ? prize.name + '（作廢）' : prize.name);
     } else if (o.t === 'complete') {
-      prizeSheet.getRange(prize.row, 6).setValue('已完成');
+      prizeSheet.getRange(prize.row, PZ.STATUS).setValue('已完成');
       prize.status = '已完成';
     }
   });

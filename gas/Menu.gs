@@ -122,7 +122,7 @@ function lockLocked_() {
   if (pool.length) snap.getRange(2, 1, pool.length, SNAPSHOT_HEADERS.length).setValues(pool.map(p => [p.id, p.unit, p.name, p.display]));
 
   const prizeSheet = sheet_(SHEET.PRIZES);
-  prizes.forEach(p => prizeSheet.getRange(p.row, 6).setValue('未抽'));
+  prizes.forEach(p => prizeSheet.getRange(p.row, PZ.STATUS).setValue('未抽'));
 
   const version = Number(sysGet_('名單版本') || 0) + 1;
   sysSet_('名單版本', version);
@@ -159,7 +159,7 @@ function menuUnlock() {
     sysSet_('獎項檢查碼', '');
     sysSet_('抽獎池人數', '');
     sysSet_('獎項鎖定後變更', '');
-    clearBelowHeader_(SHEET.PRIZES, 6, 1);
+    clearBelowHeader_(SHEET.PRIZES, PZ.STATUS, 1);
   });
   if (ok) ui.alert('已解除鎖定', '回到「已截止」。可以修改人員與獎項，改完再按「鎖定名單」。', ui.ButtonSet.OK);
 }
