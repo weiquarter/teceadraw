@@ -74,7 +74,8 @@ function apiStageLoad_(p) {
   const code = stageCode_(p);
   if (!code) return { ok: false, code: 'badCode' };
   const state = currentState_();
-  if ([STATE.LOCKED, STATE.DRAWING].indexOf(state) < 0) return { ok: true, state: state, ready: false };
+  // 鎖定前只給背景與 Logo，報到期間的主頁也要有主視覺
+  if ([STATE.LOCKED, STATE.DRAWING].indexOf(state) < 0) return { ok: true, state: state, ready: false, assets: stageAssets_([]) };
   const active = claimActive_(code);
 
   const sys = readKeyValue_(SHEET.SYSTEM);

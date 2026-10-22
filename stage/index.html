@@ -592,7 +592,7 @@ function setHint(t) {
 function updateStatus() {
   const st = Sync.status();
   const a = U.assets;
-  const assets = !M.loaded ? '素材：鎖定後載入' : a.done + a.failed < a.total ? `素材載入中 ${a.done}/${a.total}` : a.failed ? `素材已就緒（${a.failed} 張失敗）` : '素材已就緒 ✓';
+  const assets = !a.total ? '素材：沒有' : a.done + a.failed < a.total ? `素材載入中 ${a.done}/${a.total}` : a.failed ? `素材已就緒（${a.failed} 張失敗）` : '素材已就緒 ✓';
   $status.textContent = `前台代號 ${st.code}｜名單版本 ${M.version || '—'}｜待同步 ${st.pending}｜${assets}｜${PALETTES[cfg.theme.palette] || ''}・拉霸 ${reelStyle()}｜${PAGE_NAMES[U.page]}`;
   $status.hidden = !U.help;
   $sync.hidden = !st.pending && st.online;
@@ -649,6 +649,14 @@ function applyTheme(c) {
   if (c.title) document.title = c.title + '｜前台';
 }
 
+// 鎖定前先載入主頁背景與 Logo
+async function preloadHome() {
+  try {
+    const r = await Sync.load();
+    if (r.ok && !r.ready && r.assets) await loadAssets(r.assets);
+  } catch (err) { /* 連不上就等鎖定後一起載入 */ }
+}
+
 let loading = false;
 async function loadDraw() {
   if (loading) return;
@@ -682,11 +690,13 @@ async function loadDraw() {
     loading = false;
   }
 }
-// 逐張下載素材，失敗只重試那一張
+// 逐張下載素材，失敗只重試那一張；已經載入過的不重複下載
+const loadedAssets = {};
 async function loadAssets(list) {
   U.assets = { total: list.length, done: 0, failed: 0 };
   updateStatus();
   for (const a of list) {
+    if (loadedAssets[a.id]) { U.assets.done++; continue; }
     const r = await Sync.asset(a.id);
     if (r && r.data) {
       const bytes = Uint8Array.from(atob(r.data), c => c.charCodeAt(0));
@@ -694,6 +704,7 @@ async function loadAssets(list) {
       if (a.role.indexOf('photo:') === 0) ASSET.photo[a.role.slice(6)] = url;
       else ASSET[a.role] = url;
       await new Promise(res => { const img = new Image(); img.onload = img.onerror = res; img.src = url; });
+      loadedAssets[a.id] = true;
       U.assets.done++;
     } else {
       U.assets.failed++;
@@ -801,6 +812,7 @@ async function start() {
     go('home');
   }
   Sync.start();
+  preloadHome();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if ($page) { $page.querySelectorAll('.label').forEach(fitLabel); fitPrizeTitle(); fitBarTitle(); } });
 }
 start();

@@ -2,7 +2,7 @@
 
 const API_VERSION = 1;
 // 每次推送新程式就加一，用來判斷部署是不是最新版本
-const BUILD = 11;
+const BUILD = 12;
 
 const SHEET = {
   CONSOLE: '控制台',
