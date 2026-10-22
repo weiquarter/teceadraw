@@ -108,7 +108,8 @@ body {
   font: 400 56px/1 var(--f-display); color: var(--ink); background: var(--primary);
   padding: 18px 40px; border-radius: 999px;
 }
-.item { margin: 0; font: 400 96px/1.18 var(--f-display); color: var(--ink); text-wrap: balance; }
+/* 獎項名稱只在空格與 Sheet 裡的換行處斷行，太長時由程式縮小字級 */
+.item { margin: 0; font: 400 96px/1.18 var(--f-display); color: var(--ink); text-wrap: balance; white-space: pre-line; word-break: keep-all; max-width: 100%; }
 .qty-line { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
 .qty { font: 500 56px var(--f-body); color: var(--ink); }
 .qty b { font: 700 64px var(--f-num); font-variant-numeric: tabular-nums; padding: 0 6px; }
@@ -123,7 +124,8 @@ body {
   padding: 0 120px; background: var(--primary);
   display: flex; align-items: center; justify-content: space-between; gap: 40px;
 }
-.bar-title { font: 400 56px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-title { flex: 1; min-width: 0; font: 400 56px/1.2 var(--f-display); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-title.two { white-space: normal; word-break: keep-all; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .bar-title .r { margin-right: 28px; }
 .bar-prog { font: 700 56px var(--f-num); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .done-chip {

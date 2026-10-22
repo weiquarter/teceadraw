@@ -255,7 +255,7 @@ function drawHTML(idx, recall) {
     </div>`).join('');
   return `
   <header class="bar">
-    <div class="bar-title">${esc(p.name)}</div>
+    <div class="bar-title">${esc(p.name.replace(/\s*\n\s*/g, ' '))}</div>
     ${right}
   </header>
   <div class="names ${cls}" style="--rows:${Math.ceil(n / 2)}">${cellsHTML}</div>
@@ -280,8 +280,44 @@ function fitLabel(label) {
   while (label.scrollWidth > label.clientWidth && nsz > ns * 0.55) { nsz -= 2; label.style.setProperty('--nsz', nsz + 'px'); }
 }
 
+// 獎項頁名稱：先只在空格與換行處斷行（字級不低於 72px）；放不下就允許字中斷行，從大字重新縮
+function fitPrizeTitle() {
+  const h = $page && $page.querySelector('.item');
+  if (!h) return;
+  const fits = () => h.scrollWidth <= h.clientWidth + 1 && h.offsetHeight <= 600;
+  const shrink = (from, min) => {
+    let size = from;
+    h.style.fontSize = size + 'px';
+    while (!fits() && size > min) { size -= 4; h.style.fontSize = size + 'px'; }
+    return fits();
+  };
+  h.style.wordBreak = '';
+  if (shrink(96, 72)) return;
+  h.style.wordBreak = 'normal';
+  shrink(96, 40);
+}
+// 抽獎頁標題列：先縮字維持一行（最小 40px）；放不下改成兩行（最小 30px），必要時字中斷行
+function fitBarTitle() {
+  const t = $page && $page.querySelector('.bar-title');
+  if (!t) return;
+  let size = 56;
+  t.classList.remove('two');
+  t.style.wordBreak = '';
+  t.style.fontSize = size + 'px';
+  while (t.scrollWidth > t.clientWidth + 1 && size > 40) { size -= 2; t.style.fontSize = size + 'px'; }
+  if (t.scrollWidth <= t.clientWidth + 1) return;
+  t.classList.add('two');
+  size = 48;
+  t.style.fontSize = size + 'px';
+  if (t.scrollWidth > t.clientWidth + 1) t.style.wordBreak = 'normal';
+  const tooBig = () => t.scrollHeight > t.clientHeight + 1 || t.scrollWidth > t.clientWidth + 1;
+  while (tooBig() && size > 30) { size -= 2; t.style.fontSize = size + 'px'; }
+}
+
 function afterRender() {
   cells = Array.from($page.querySelectorAll('.cell[data-i]'));
+  fitPrizeTitle();
+  fitBarTitle();
   if (U.page === 'home') renderQR();
   if (U.page === 'draw' || U.page === 'recall') {
     const idx = curIndex();
@@ -765,7 +801,7 @@ async function start() {
     go('home');
   }
   Sync.start();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if ($page) $page.querySelectorAll('.label').forEach(fitLabel); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if ($page) { $page.querySelectorAll('.label').forEach(fitLabel); fitPrizeTitle(); fitBarTitle(); } });
 }
 start();
 })();
