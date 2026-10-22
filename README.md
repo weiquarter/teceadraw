@@ -155,7 +155,7 @@ cmd /c "node tools\make-test-people.mjs 600 > test-people.csv"
 node tools/stress-test.mjs --e <部署作業ID> --csv test-people.csv --n 300 --window 30
 ```
 
-驗收標準：30 秒內送出 300 人，全部在 60 秒內成功，「回報已報到」為 0。逐筆耗時寫在 `stress-result.csv`。跑完用「進階 › 清除資料」回到準備中。
+驗收標準：30 秒內送出 300 人，全部在 60 秒內成功，「回報已報到」為 0。800 人規模的活動另跑一次 `--n 400 --window 40`（名單用 `make-test-people.mjs 800` 產生，Sheet 也要有這 800 人）。逐筆耗時寫在 `stress-result.csv`。跑完用「進階 › 清除資料」回到準備中。
 
 ### 部署測試
 
